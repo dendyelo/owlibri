@@ -15,6 +15,7 @@
   },
   "keywords": [
     "libgen",
+    "libgen-downloader",
     "ebook",
     "pdf",
     "epub",
@@ -22,7 +23,11 @@
     "desktop-app",
     "bookcase",
     "downloader",
-    "academic-books"
+    "academic-books",
+    "academic-papers",
+    "digital-library",
+    "mirror-search",
+    "search"
   ],
   "author": {
     "name": "dendyelo",

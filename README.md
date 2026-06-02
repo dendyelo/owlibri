@@ -6,7 +6,7 @@
 
 Glassmorphic desktop bookcase and LibGen downloader.
 
-`owlibri` is a lightweight Electron desktop app for searching LibGen mirrors, downloading PDF and EPUB books, and organizing digital books and scientific articles into a local glassmorphic bookcase. Designed with a sleek, frosted-glass dark theme, it bridges search mirrors and a local digital library into one seamless experience.
+`owlibri` is a lightweight Electron desktop app for searching LibGen mirrors, downloading PDF and EPUB books, and organizing digital books and scientific articles into a local glassmorphic bookcase. If you are looking for a `libgen downloader`, `ebook downloader`, or a local desktop book library, this project is built for that workflow.
 
 ---
 
@@ -16,6 +16,21 @@ Glassmorphic desktop bookcase and LibGen downloader.
 * Added live download speed display in the download queue.
 * Hardened download cancellation and file saving so downloads are safer and less likely to overwrite existing files.
 * Improved the GitHub release workflow so releases now include build artifacts and generated release notes.
+
+---
+
+## Search Terms
+
+You can find this project on GitHub with terms like:
+
+* `libgen`
+* `libgen downloader`
+* `ebook downloader`
+* `pdf downloader`
+* `epub downloader`
+* `desktop bookcase`
+* `electron book manager`
+* `academic books`
 
 ---
 
