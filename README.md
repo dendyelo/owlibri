@@ -4,7 +4,7 @@
   <img src="assets/owlibri_1.png" alt="owlibri bookcase view" />
 </p>
 
-A premium, glassmorphic desktop bookcase and LibGen downloader.
+Glassmorphic desktop bookcase and LibGen downloader.
 
 `owlibri` is a lightweight, beautiful desktop application built to search, download, and organize digital books and scientific articles. Designed with a sleek, frosted-glass dark theme, it bridges search mirrors and a local digital library bookcase into one seamless experience.
 
