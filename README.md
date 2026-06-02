@@ -13,7 +13,6 @@ Glassmorphic desktop bookcase and LibGen downloader.
 ## What Changed in v1.0.2
 
 * Added Windows auto-update for stable builds so updates can be downloaded and applied without reinstalling manually.
-* Improved release publishing with generated notes and cross-platform build artifacts.
 * Added download history, so finished downloads can be reopened later with **Open File**.
 * Added cover cache controls in Settings and protected bookcase covers from being removed during cleanup.
 * Improved search reliability with fallback mirrors, longer timeouts, and clearer error messages.
