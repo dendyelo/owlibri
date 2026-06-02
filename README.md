@@ -19,21 +19,6 @@ Glassmorphic desktop bookcase and LibGen downloader.
 
 ---
 
-## Search Terms
-
-You can find this project on GitHub with terms like:
-
-* `libgen`
-* `libgen downloader`
-* `ebook downloader`
-* `pdf downloader`
-* `epub downloader`
-* `desktop bookcase`
-* `electron book manager`
-* `academic books`
-
----
-
 ## Screenshots
 
 <p align="center">
@@ -73,6 +58,21 @@ You can find this project on GitHub with terms like:
 
 All book database entries and downloaded files are kept strictly local to your machine. You can find your physical documents here:
 * **Storage Directory**: `Documents/owlibri/bookcase/`
+
+---
+
+## Search Terms
+
+You can find this project on GitHub with terms like:
+
+* `libgen`
+* `libgen downloader`
+* `ebook downloader`
+* `pdf downloader`
+* `epub downloader`
+* `desktop bookcase`
+* `electron book manager`
+* `academic books`
 
 ---
 
