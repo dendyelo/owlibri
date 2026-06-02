@@ -37,5 +37,9 @@ contextBridge.exposeInMainWorld("api", {
     };
   },
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
-  openExternal: (url: string) => ipcRenderer.invoke("open-external", url)
+  openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
+  getSettings: () => ipcRenderer.invoke("get-settings"),
+  saveSettings: (settings: any) => ipcRenderer.invoke("save-settings", settings),
+  getDefaultBookcaseDir: () => ipcRenderer.invoke("get-default-bookcase-dir"),
+  selectDirectory: () => ipcRenderer.invoke("select-directory")
 });

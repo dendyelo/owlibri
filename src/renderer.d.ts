@@ -38,6 +38,10 @@ export interface ElectronAPI {
     releaseUrl?: string;
   }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+  getSettings: () => Promise<{ bookcaseDir: string }>;
+  saveSettings: (settings: { bookcaseDir: string }) => Promise<{ bookcaseDir: string }>;
+  getDefaultBookcaseDir: () => Promise<string>;
+  selectDirectory: () => Promise<string | null>;
 }
 
 declare global {

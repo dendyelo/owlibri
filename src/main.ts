@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -8,6 +8,7 @@ import { downloadFile } from './main/services/download';
 import { getLocalBooks, addLocalBook, deleteLocalBook } from './main/services/library-db';
 import { parseHTML } from 'linkedom';
 import { parseSizeToBytes } from './main/services/utilities';
+import { getAppSettings, saveAppSettings, getDefaultBookcaseDir } from './main/services/settings-db';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -44,10 +45,15 @@ const createWindow = () => {
 };
 
 app.on('ready', async () => {
-  // Ensure Documents/owlibri/bookcase folder exists
-  const bookcaseDir = path.join(app.getPath('documents'), 'owlibri', 'bookcase');
+  // Ensure bookcase folder exists based on settings
+  const settings = getAppSettings();
+  const bookcaseDir = settings.bookcaseDir;
   if (!fs.existsSync(bookcaseDir)) {
-    fs.mkdirSync(bookcaseDir, { recursive: true });
+    try {
+      fs.mkdirSync(bookcaseDir, { recursive: true });
+    } catch (err) {
+      console.error('Failed to create bookcase directory on startup:', err);
+    }
   }
 
   createWindow();
@@ -151,7 +157,8 @@ ipcMain.handle('download-book', async (event, entry: any) => {
 
     let progressBytes = 0;
 
-    const bookcaseDir = path.join(app.getPath('documents'), 'owlibri', 'bookcase');
+    const settings = getAppSettings();
+    const bookcaseDir = settings.bookcaseDir;
     const controller = new AbortController();
     activeAbortControllers.set(entry.id, controller);
 
@@ -322,4 +329,31 @@ ipcMain.handle('open-external', async (_event, url: string) => {
     console.error('Open External Error:', error);
     return { success: false, error: (error as Error).message };
   }
+});
+
+// IPC Handler: Get Settings
+ipcMain.handle('get-settings', () => {
+  return getAppSettings();
+});
+
+// IPC Handler: Save Settings
+ipcMain.handle('save-settings', (_event, settings: any) => {
+  return saveAppSettings(settings);
+});
+
+// IPC Handler: Get Default Bookcase Directory
+ipcMain.handle('get-default-bookcase-dir', () => {
+  return getDefaultBookcaseDir();
+});
+
+// IPC Handler: Open Folder Picker Dialog
+ipcMain.handle('select-directory', async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled) {
+    return null;
+  }
+  return result.filePaths[0];
 });

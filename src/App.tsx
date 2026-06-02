@@ -16,12 +16,14 @@ interface DownloadItem {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"bookcase" | "search" | "downloads">("bookcase");
+  const [activeTab, setActiveTab] = useState<"bookcase" | "search" | "downloads" | "settings">("bookcase");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Entry[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [localBooks, setLocalBooks] = useState<LocalBook[]>([]);
   const [downloads, setDownloads] = useState<Record<string, DownloadItem>>({});
+  const [bookcasePath, setBookcasePath] = useState("");
+  const [showSavedToast, setShowSavedToast] = useState(false);
   const [mirrorStatus, setMirrorStatus] = useState<{ url: string; connected: boolean }>({
     url: "",
     connected: false,
@@ -42,6 +44,10 @@ export default function App() {
 
     window.api.getMirrorStatus().then((status) => {
       setMirrorStatus(status);
+    });
+
+    window.api.getSettings().then((settings) => {
+      setBookcasePath(settings.bookcaseDir);
     });
 
     const unsubscribeMirror = window.api.onMirrorStatusChanged((status) => {
@@ -245,6 +251,27 @@ export default function App() {
     )?.filePath;
   };
 
+  const handleChangeDirectory = async () => {
+    const newPath = await window.api.selectDirectory();
+    if (newPath) {
+      const updated = await window.api.saveSettings({ bookcaseDir: newPath });
+      setBookcasePath(updated.bookcaseDir);
+      triggerSavedToast();
+    }
+  };
+
+  const handleResetToDefault = async () => {
+    const defaultPath = await window.api.getDefaultBookcaseDir();
+    const updated = await window.api.saveSettings({ bookcaseDir: defaultPath });
+    setBookcasePath(updated.bookcaseDir);
+    triggerSavedToast();
+  };
+
+  const triggerSavedToast = () => {
+    setShowSavedToast(true);
+    setTimeout(() => setShowSavedToast(false), 3000);
+  };
+
   return (
     <div className="app-container">
       {/* Sidebar navigation */}
@@ -296,6 +323,17 @@ export default function App() {
                 {Object.values(downloads).filter((d) => d.status === "downloading" || d.status === "queued").length}
               </span>
             )}
+          </button>
+
+          <button
+            className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
+            onClick={() => setActiveTab("settings")}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="nav-icon">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            Settings
           </button>
         </nav>
 
@@ -688,6 +726,66 @@ export default function App() {
                   })}
               </div>
             )}
+          </section>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === "settings" && (
+          <section className="tab-pane">
+            <div className="pane-header">
+              <h2>Settings</h2>
+              <p>Configure your personal preferences for bookcase management and storage.</p>
+            </div>
+
+            <div className="settings-container">
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="settings-sec-icon">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <h3>Library Storage Location</h3>
+                </div>
+                <div className="settings-card-body">
+                  <p className="settings-desc">
+                    Choose the folder where newly downloaded PDF/EPUB books will be saved on your disk.
+                  </p>
+                  
+                  <div className="settings-path-field">
+                    <input 
+                      type="text" 
+                      value={bookcasePath} 
+                      readOnly 
+                      className="settings-path-input"
+                      title="Current storage path"
+                    />
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={handleChangeDirectory}
+                    >
+                      Browse...
+                    </button>
+                  </div>
+
+                  <div className="settings-card-actions">
+                    <button 
+                      className="btn-text-link"
+                      onClick={handleResetToDefault}
+                    >
+                      Reset to Default Directory
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {showSavedToast && (
+                <div className="settings-toast">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="toast-icon">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>Settings saved successfully!</span>
+                </div>
+              )}
+            </div>
           </section>
         )}
       </main>
