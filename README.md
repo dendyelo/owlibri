@@ -10,11 +10,14 @@ Glassmorphic desktop bookcase and LibGen downloader.
 
 ---
 
-## What Changed in v1.0.1
+## What Changed in v1.0.2
 
-* Added search filters for file type, language, and year sorting.
-* Added live download speed display in the download queue.
-* Hardened download cancellation and file saving so downloads are safer and less likely to overwrite existing files.
+* Added Windows auto-update for stable builds so updates can be downloaded and applied without reinstalling manually.
+* Improved release publishing with generated notes and cross-platform build artifacts.
+* Added download history, so finished downloads can be reopened later with **Open File**.
+* Added cover cache controls in Settings and protected bookcase covers from being removed during cleanup.
+* Improved search reliability with fallback mirrors, longer timeouts, and clearer error messages.
+* Added ETA alongside live download speed in the download queue.
 
 ---
 
@@ -55,8 +58,9 @@ Glassmorphic desktop bookcase and LibGen downloader.
 
 ## Update Behavior
 
-* **Windows**: future releases will be able to download and apply updates automatically from GitHub Releases.
-* **macOS and Linux**: updates remain manual through the GitHub Releases page, where you can download the newest installer/package and replace the existing app.
+* **Windows**: stable releases can download and apply updates automatically from GitHub Releases, then prompt you to restart.
+* **macOS**: updates are manual. Download the newest `.dmg` from GitHub Releases and replace the app in `Applications`.
+* **Linux**: updates are manual. Download the newest `.deb` or `.rpm` package from GitHub Releases and install it over the existing version.
 
 ---
 
