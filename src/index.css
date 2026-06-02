@@ -650,6 +650,26 @@ body, html, #root {
   margin-bottom: 1.25rem;
 }
 
+.search-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(10px);
+}
+
+.search-pagination-status {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 /* Search Results Card Styling */
 .search-results-list {
   display: flex;
@@ -1221,5 +1241,9 @@ body, html, #root {
 
   .download-title-actions {
     justify-content: flex-start;
+  }
+
+  .search-pagination {
+    justify-content: center;
   }
 }

@@ -28,10 +28,16 @@ interface DownloadError {
 }
 
 interface ElectronAPI {
-  searchLibgen: (query: string) => Promise<{
+  searchLibgen: (query: string, page?: number) => Promise<{
     success: boolean;
     entries: Entry[];
     error?: string;
+    currentPage: number;
+    pageSize: number;
+    totalPages: number;
+    totalResults?: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
   }>;
   downloadBook: (entry: Entry) => Promise<{ success: boolean; path?: string; error?: string }>;
   getLocalBooks: () => Promise<LocalBook[]>;

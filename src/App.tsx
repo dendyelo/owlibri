@@ -1,4 +1,4 @@
-import React, { useState, useEffect, FormEvent } from "react";
+import React, { useState, useEffect, useRef, FormEvent } from "react";
 import { Entry, getEntrySourceKey } from "./main/services/entry";
 import { LocalBook } from "./main/services/library-db";
 import type { DownloadHistoryItem } from "./main/services/download-history";
@@ -37,6 +37,15 @@ interface SearchFilters {
   year: "default" | "newest" | "oldest";
 }
 
+interface SearchPaginationState {
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  totalResults?: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
 interface CoverImageProps {
   coverUrl?: string;
   alt: string;
@@ -62,6 +71,15 @@ const formatDuration = (seconds: number) => {
   }
 
   return `${remainingSeconds}s`;
+};
+
+const DEFAULT_SEARCH_PAGINATION: SearchPaginationState = {
+  currentPage: 1,
+  pageSize: 25,
+  totalPages: 1,
+  totalResults: undefined,
+  hasNextPage: false,
+  hasPreviousPage: false,
 };
 
 const getDownloadEtaLabel = (item: DownloadItem) => {
@@ -184,9 +202,11 @@ function CoverImage({ coverUrl, alt, className }: CoverImageProps) {
 export default function App() {
   const [activeTab, setActiveTab] = useState<"bookcase" | "search" | "downloads" | "settings">("bookcase");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeSearchQuery, setActiveSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Entry[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchPagination, setSearchPagination] = useState<SearchPaginationState>(DEFAULT_SEARCH_PAGINATION);
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     fileType: "all",
     language: "all",
@@ -208,6 +228,7 @@ export default function App() {
   } | null>(null);
   const [coverCacheStats, setCoverCacheStats] = useState<{ fileCount: number; totalSizeBytes: number; protectedFileCount: number; removableExpiredFileCount: number } | null>(null);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+  const searchRequestIdRef = useRef(0);
 
   // Fetch local library books on mount and listen to download events
   useEffect(() => {
@@ -312,29 +333,128 @@ export default function App() {
     };
   }, []);
 
-  // Handle book search from LibGen
-  const handleSearch = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-
-    setIsSearching(true);
-    setSearchError(null);
-    try {
-      const result = await window.api.searchLibgen(searchQuery);
-      setSearchResults(result.entries);
-      setSearchError(result.success ? null : (result.error || "Search failed."));
+  const applySearchResponse = (
+    result: {
+      success: boolean;
+      entries: Entry[];
+      error?: string;
+      currentPage: number;
+      pageSize: number;
+      totalPages: number;
+      totalResults?: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    },
+    shouldResetFilters: boolean,
+  ) => {
+    setSearchResults(result.entries);
+    setSearchPagination({
+      currentPage: result.currentPage,
+      pageSize: result.pageSize,
+      totalPages: result.totalPages,
+      totalResults: result.totalResults,
+      hasNextPage: result.hasNextPage,
+      hasPreviousPage: result.hasPreviousPage,
+    });
+    setSearchError(result.success ? null : (result.error || "Search failed."));
+    if (shouldResetFilters) {
       setSearchFilters({
         fileType: "all",
         language: "all",
         year: "default",
       });
-    } catch (err) {
-      console.error("Failed search:", err);
+    }
+  };
+
+  const loadSearchPage = async (query: string, page: number, options?: { resetResults?: boolean; resetFilters?: boolean; updateActiveQuery?: boolean }) => {
+    const normalizedQuery = query.trim();
+    const requestedPage = Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1;
+    if (!normalizedQuery) {
       setSearchResults([]);
+      setSearchPagination(DEFAULT_SEARCH_PAGINATION);
+      setSearchError(null);
+      setActiveSearchQuery("");
+      return;
+    }
+
+    const requestId = ++searchRequestIdRef.current;
+    const resetResults = options?.resetResults ?? false;
+    const resetFilters = options?.resetFilters ?? false;
+    const updateActiveQuery = options?.updateActiveQuery ?? false;
+
+    setIsSearching(true);
+    setSearchError(null);
+    if (updateActiveQuery) {
+      setActiveSearchQuery(normalizedQuery);
+    }
+    if (resetResults) {
+      setSearchResults([]);
+      setSearchPagination(DEFAULT_SEARCH_PAGINATION);
+    }
+    if (resetFilters) {
+      setSearchFilters({
+        fileType: "all",
+        language: "all",
+        year: "default",
+      });
+    }
+
+    try {
+      const result = await window.api.searchLibgen(normalizedQuery, requestedPage);
+      if (requestId !== searchRequestIdRef.current) {
+        return;
+      }
+
+      if (result.success) {
+        if (!updateActiveQuery) {
+          setActiveSearchQuery(normalizedQuery);
+        }
+        applySearchResponse(result, false);
+      } else {
+        if (resetResults) {
+          setSearchResults([]);
+          setSearchPagination(DEFAULT_SEARCH_PAGINATION);
+        }
+        setSearchError(result.error || "Search failed.");
+      }
+    } catch (err) {
+      if (requestId !== searchRequestIdRef.current) {
+        return;
+      }
+
+      console.error("Failed search:", err);
+      if (resetResults) {
+        setSearchResults([]);
+        setSearchPagination(DEFAULT_SEARCH_PAGINATION);
+      }
       setSearchError(err instanceof Error ? err.message : "Search failed. Please try again.");
     } finally {
-      setIsSearching(false);
+      if (requestId === searchRequestIdRef.current) {
+        setIsSearching(false);
+      }
     }
+  };
+
+  // Handle book search from LibGen
+  const handleSearch = async (e: FormEvent) => {
+    e.preventDefault();
+    await loadSearchPage(searchQuery, 1, {
+      resetResults: true,
+      resetFilters: true,
+      updateActiveQuery: true,
+    });
+  };
+
+  const handleSearchPageChange = async (nextPage: number) => {
+    if (!activeSearchQuery || isSearching) {
+      return;
+    }
+
+    if (nextPage < 1 || nextPage > searchPagination.totalPages) {
+      return;
+    }
+
+    await loadSearchPage(activeSearchQuery, nextPage);
   };
 
   // Trigger book download
@@ -504,6 +624,9 @@ export default function App() {
 
       return searchFilters.year === "newest" ? yearB - yearA : yearA - yearB;
     });
+
+  const hasActiveSearch = activeSearchQuery.trim().length > 0;
+  const showSearchPagination = hasActiveSearch && searchPagination.totalPages > 1;
 
   const getLocalBookForEntry = (entry: Entry) => {
     const sourceKey = getEntrySourceKey(entry);
@@ -924,9 +1047,35 @@ export default function App() {
               </div>
             )}
 
-            {searchResults.length > 0 && (
+            {hasActiveSearch && searchResults.length > 0 && (
               <div className="search-results-meta">
-                Found {filteredSearchResults.length} of {searchResults.length} books for your query.
+                Showing {filteredSearchResults.length} of {searchResults.length} results on page {searchPagination.currentPage}
+                {searchPagination.totalPages > 1 ? ` of ${searchPagination.totalPages}` : ""}
+                {typeof searchPagination.totalResults === "number" ? `, ${searchPagination.totalResults} total results` : ""}.
+              </div>
+            )}
+
+            {showSearchPagination && !isSearching && (
+              <div className="search-pagination">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleSearchPageChange(searchPagination.currentPage - 1)}
+                  disabled={!searchPagination.hasPreviousPage}
+                >
+                  Previous
+                </button>
+                <span className="search-pagination-status">
+                  Page {searchPagination.currentPage} of {searchPagination.totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleSearchPageChange(searchPagination.currentPage + 1)}
+                  disabled={!searchPagination.hasNextPage}
+                >
+                  Next
+                </button>
               </div>
             )}
 
@@ -947,13 +1096,21 @@ export default function App() {
                   <span className="spinner spinner-large"></span>
                   <p>Aggregating mirror links and fetching matching entries...</p>
                 </div>
-              ) : searchResults.length === 0 ? (
+              ) : !hasActiveSearch ? (
                 <div className="search-empty-state">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="search-icon-large">
                     <circle cx="11" cy="11" r="8" />
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
                   <p>Enter a query above to search for books online.</p>
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="search-empty-state">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="search-icon-large">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <p>No results were returned for this page. Try moving to another page or searching again.</p>
                 </div>
               ) : filteredSearchResults.length === 0 ? (
                 <div className="search-empty-state">

@@ -29,6 +29,7 @@ const SEARCH_TIMEOUT_MS = 25000;
 const DETAIL_TIMEOUT_MS = 10000;
 const UPDATE_TIMEOUT_MS = 5000;
 const DEFAULT_LIBGEN_MIRROR = 'https://libgen.li/';
+const SEARCH_PAGE_SIZE = 25;
 
 interface GitHubRelease {
   tag_name?: string;
@@ -41,6 +42,21 @@ interface SearchResultPayload {
   success: boolean;
   entries: Entry[];
   error?: string;
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  totalResults?: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+interface SearchPageMetadata {
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  totalResults?: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
 interface ParsedVersion {
@@ -221,9 +237,9 @@ const getSafeExternalUrl = (url: string) => {
   }
 };
 
-const searchEntriesOnMirror = async (query: string, mirror: string): Promise<Entry[]> => {
+const searchEntriesOnMirror = async (query: string, mirror: string, page: number): Promise<{ entries: Entry[]; metadata: SearchPageMetadata }> => {
   const adapter = new LibgenPlusAdapter(mirror);
-  const searchUrl = adapter.getSearchURL(query, 1, 25);
+  const searchUrl = adapter.getSearchURL(query, page, SEARCH_PAGE_SIZE);
 
   const response = await fetch(searchUrl, {
     signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
@@ -235,6 +251,7 @@ const searchEntriesOnMirror = async (query: string, mirror: string): Promise<Ent
   const htmlText = await response.text();
   const { document } = parseHTML(htmlText);
   const entries = adapter.parseEntries(document as unknown as Document);
+  const metadata = adapter.parseSearchPagination(document as unknown as Document, page, SEARCH_PAGE_SIZE);
 
   entries.forEach((entry) => {
     if (entry.coverUrl) {
@@ -242,7 +259,7 @@ const searchEntriesOnMirror = async (query: string, mirror: string): Promise<Ent
     }
   });
 
-  return entries;
+  return { entries, metadata };
 };
 
 const getSearchErrorMessage = (error: unknown) => {
@@ -376,25 +393,50 @@ app.on('activate', () => {
 });
 
 // IPC Handler: Search LibGen
-ipcMain.handle('search-libgen', async (_event, query: string): Promise<SearchResultPayload> => {
+ipcMain.handle('search-libgen', async (_event, query: string, pageNumber = 1): Promise<SearchResultPayload> => {
   try {
     if (typeof query !== 'string') {
-      return { success: true, entries: [] };
+      return {
+        success: true,
+        entries: [],
+        currentPage: 1,
+        pageSize: SEARCH_PAGE_SIZE,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
     }
 
     if (!query.trim()) {
-      return { success: true, entries: [] };
+      return {
+        success: true,
+        entries: [],
+        currentPage: 1,
+        pageSize: SEARCH_PAGE_SIZE,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
     }
 
+    const page = Number.isFinite(pageNumber) ? Math.max(1, Math.floor(pageNumber)) : 1;
     const mirrors = Array.from(new Set([activeMirror, DEFAULT_LIBGEN_MIRROR]));
     let lastError: unknown = null;
     let hadSuccessfulResponse = false;
+    let lastMetadata: SearchPageMetadata = {
+      currentPage: page,
+      pageSize: SEARCH_PAGE_SIZE,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: page > 1,
+    };
 
     for (const mirror of mirrors) {
       try {
-        const entries = await searchEntriesOnMirror(query, mirror);
+        const { entries, metadata } = await searchEntriesOnMirror(query, mirror, page);
+        lastMetadata = metadata;
         if (entries.length > 0) {
-          return { success: true, entries };
+          return { success: true, entries, ...metadata };
         }
         hadSuccessfulResponse = true;
       } catch (error) {
@@ -411,16 +453,22 @@ ipcMain.handle('search-libgen', async (_event, query: string): Promise<SearchRes
         success: false,
         entries: [],
         error: getSearchErrorMessage(lastError),
+        ...lastMetadata,
       };
     }
 
-    return { success: true, entries: [] };
+    return { success: true, entries: [], ...lastMetadata };
   } catch (error) {
     console.error('LibGen Search Error:', error);
     return {
       success: false,
       entries: [],
       error: getSearchErrorMessage(error),
+      currentPage: 1,
+      pageSize: SEARCH_PAGE_SIZE,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
     };
   }
 });

@@ -114,6 +114,32 @@ export class LibgenPlusAdapter {
     return url.toString();
   }
 
+  parseSearchPagination(document: Document, fallbackPage: number, fallbackPageSize: number) {
+    const paginationScript = [...document.querySelectorAll("script")].find((script) => {
+      return script.textContent?.includes("new Paginator(");
+    })?.textContent || "";
+
+    const paginatorMatch = paginationScript.match(
+      /new Paginator\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*"([^"]*)"\s*\)/,
+    );
+
+    const totalPages = paginatorMatch ? Number.parseInt(paginatorMatch[2], 10) || fallbackPage : fallbackPage;
+    const pageCurrent = paginatorMatch ? Number.parseInt(paginatorMatch[4], 10) || fallbackPage : fallbackPage;
+
+    const activeTabBadge = document.querySelector("ul.nav-tabs a.nav-link.active .badge");
+    const totalResultsText = activeTabBadge?.textContent?.trim() || "";
+    const totalResults = Number.parseInt(totalResultsText, 10);
+
+    return {
+      currentPage: pageCurrent > 0 ? pageCurrent : fallbackPage,
+      pageSize: fallbackPageSize,
+      totalPages: totalPages > 0 ? totalPages : fallbackPage,
+      totalResults: Number.isFinite(totalResults) ? totalResults : undefined,
+      hasNextPage: (pageCurrent > 0 ? pageCurrent : fallbackPage) < (totalPages > 0 ? totalPages : fallbackPage),
+      hasPreviousPage: (pageCurrent > 0 ? pageCurrent : fallbackPage) > 1,
+    };
+  }
+
   getDetailPageURL(md5: string): string {
     const url = new URL("/ads.php", this.baseURL);
     url.searchParams.set("md5", md5);

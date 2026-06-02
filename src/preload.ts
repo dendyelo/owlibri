@@ -34,7 +34,7 @@ interface MirrorStatusPayload {
 }
 
 contextBridge.exposeInMainWorld("api", {
-  searchLibgen: (query: string) => ipcRenderer.invoke("search-libgen", query),
+  searchLibgen: (query: string, page = 1) => ipcRenderer.invoke("search-libgen", query, page),
   downloadBook: (entry: Entry) => ipcRenderer.invoke("download-book", entry),
   getLocalBooks: () => ipcRenderer.invoke("get-local-books"),
   getDownloadHistory: () => ipcRenderer.invoke("get-download-history"),
