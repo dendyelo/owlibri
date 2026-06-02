@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("api", {
   openBook: (filePath: string) => ipcRenderer.invoke("open-book", filePath),
   deleteBook: (id: string) => ipcRenderer.invoke("delete-book", id),
   cancelDownload: (id: string) => ipcRenderer.invoke("cancel-download", id),
+  getMirrorStatus: () => ipcRenderer.invoke("get-mirror-status"),
   onDownloadProgress: (callback: (data: any) => void) => {
     const subscription = (_event: any, data: any) => callback(data);
     ipcRenderer.on("download-progress", subscription);

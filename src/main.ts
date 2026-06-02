@@ -16,6 +16,7 @@ if (started) {
 
 let mainWindow: BrowserWindow | null = null;
 let activeMirror = 'https://libgen.li/';
+let isConnected = false;
 const activeAbortControllers = new Map<string, AbortController>();
 
 const createWindow = () => {
@@ -52,6 +53,15 @@ app.on('ready', async () => {
   // Detect active mirror asynchronously at startup
   activeMirror = await detectActiveMirror();
   console.log('Using active LibGen mirror:', activeMirror);
+
+  // Verify if the active mirror is reachable
+  try {
+    const testRes = await fetch(activeMirror, { signal: AbortSignal.timeout(3000) });
+    isConnected = testRes.ok;
+  } catch {
+    isConnected = false;
+  }
+  console.log('Mirror connection status:', isConnected ? 'Connected' : 'Disconnected');
 });
 
 app.on('window-all-closed', () => {
@@ -212,6 +222,11 @@ ipcMain.handle('download-book', async (event, entry: any) => {
 // IPC Handler: Get Local Books (Bookcase)
 ipcMain.handle('get-local-books', () => {
   return getLocalBooks();
+});
+
+// IPC Handler: Get Mirror Status
+ipcMain.handle('get-mirror-status', () => {
+  return { url: activeMirror, connected: isConnected };
 });
 
 // IPC Handler: Delete Local Book

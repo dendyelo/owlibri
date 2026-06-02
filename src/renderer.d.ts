@@ -26,6 +26,7 @@ export interface ElectronAPI {
   openBook: (filePath: string) => Promise<{ success: boolean; error?: string }>;
   deleteBook: (id: string) => Promise<LocalBook[]>;
   cancelDownload: (id: string) => Promise<void>;
+  getMirrorStatus: () => Promise<{ url: string; connected: boolean }>;
   onDownloadProgress: (callback: (data: DownloadProgress) => void) => () => void;
   onDownloadComplete: (callback: (data: DownloadComplete) => void) => () => void;
   onDownloadError: (callback: (data: DownloadError) => void) => () => void;

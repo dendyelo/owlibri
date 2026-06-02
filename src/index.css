@@ -187,13 +187,22 @@ body, html, #root {
 .pulse-dot {
   width: 8px;
   height: 8px;
-  background-color: var(--color-success);
   border-radius: 50%;
-  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-  animation: pulse 1.6s infinite;
 }
 
-@keyframes pulse {
+.pulse-dot.connected {
+  background-color: var(--color-success);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulse-green 1.6s infinite;
+}
+
+.pulse-dot.disconnected {
+  background-color: var(--color-error);
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: pulse-red 1.6s infinite;
+}
+
+@keyframes pulse-green {
   0% {
     transform: scale(0.9);
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
@@ -205,6 +214,21 @@ body, html, #root {
   100% {
     transform: scale(0.9);
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes pulse-red {
+  0% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
   }
 }
 

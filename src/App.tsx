@@ -22,12 +22,20 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [localBooks, setLocalBooks] = useState<LocalBook[]>([]);
   const [downloads, setDownloads] = useState<Record<string, DownloadItem>>({});
+  const [mirrorStatus, setMirrorStatus] = useState<{ url: string; connected: boolean }>({
+    url: "",
+    connected: false,
+  });
 
   // Fetch local library books on mount and listen to download events
   useEffect(() => {
     // 1. Initial Load
     window.api.getLocalBooks().then((books) => {
       setLocalBooks(books);
+    });
+
+    window.api.getMirrorStatus().then((status) => {
+      setMirrorStatus(status);
     });
 
     // 2. Download Event Listeners
@@ -276,8 +284,12 @@ export default function App() {
 
         <div className="sidebar-footer">
           <div className="mirror-status">
-            <span className="pulse-dot"></span>
-            <span className="status-label">LibGen Connected</span>
+            <span className={`pulse-dot ${mirrorStatus.connected ? "connected" : "disconnected"}`}></span>
+            <span className="status-label">
+              {mirrorStatus.connected
+                ? `Connected to ${mirrorStatus.url.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "")}`
+                : "Disconnected"}
+            </span>
           </div>
         </div>
       </aside>
