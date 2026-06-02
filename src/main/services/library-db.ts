@@ -1,16 +1,24 @@
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 import { app } from "electron";
+import { readJsonFile, writeJsonFile } from "./json-store";
 
 export interface LocalBook {
   id: string;
+  sourceKey?: string;
+  dbId?: string;
   title: string;
   authors: string;
   filePath: string;
   addedAt: string;
   format: string;
   size: string;
+  publisher?: string;
+  year?: string;
+  pages?: string;
+  language?: string;
   coverUrl?: string;
+  sourceMirror?: string;
 }
 
 const getDbPath = () => {
@@ -18,16 +26,8 @@ const getDbPath = () => {
 };
 
 export const getLocalBooks = (): LocalBook[] => {
-  const dbPath = getDbPath();
-  if (!fs.existsSync(dbPath)) {
-    return [];
-  }
-  try {
-    const data = fs.readFileSync(dbPath, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
+  const data = readJsonFile<unknown>(getDbPath(), []);
+  return Array.isArray(data) ? data.filter(isLocalBook) : [];
 };
 
 export const addLocalBook = (book: LocalBook) => {
@@ -39,7 +39,7 @@ export const addLocalBook = (book: LocalBook) => {
   }
   
   books.push(book);
-  fs.writeFileSync(getDbPath(), JSON.stringify(books, null, 2), "utf-8");
+  writeJsonFile(getDbPath(), books);
 };
 
 export const deleteLocalBook = (id: string, deleteFile = true): LocalBook[] => {
@@ -58,6 +58,23 @@ export const deleteLocalBook = (id: string, deleteFile = true): LocalBook[] => {
   }
 
   const updatedBooks = books.filter(b => b.id !== id);
-  fs.writeFileSync(getDbPath(), JSON.stringify(updatedBooks, null, 2), "utf-8");
+  writeJsonFile(getDbPath(), updatedBooks);
   return updatedBooks;
+};
+
+const isLocalBook = (value: unknown): value is LocalBook => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const book = value as Partial<LocalBook>;
+  return (
+    typeof book.id === "string" &&
+    typeof book.title === "string" &&
+    typeof book.authors === "string" &&
+    typeof book.filePath === "string" &&
+    typeof book.addedAt === "string" &&
+    typeof book.format === "string" &&
+    typeof book.size === "string"
+  );
 };

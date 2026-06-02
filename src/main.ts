@@ -6,6 +6,7 @@ import { detectActiveMirror } from './main/services/mirror-detector';
 import { LibgenPlusAdapter } from './main/services/libgen-plus-adapter';
 import { downloadFile } from './main/services/download';
 import { getLocalBooks, addLocalBook, deleteLocalBook } from './main/services/library-db';
+import { getEntrySourceKey, getMd5FromEntryMirror } from './main/services/entry';
 import type { Entry } from './main/services/entry';
 import { parseHTML } from 'linkedom';
 import { parseSizeToBytes } from './main/services/utilities';
@@ -140,7 +141,7 @@ const getLatestReleaseForChannel = async (channel: 'stable' | 'pre') => {
       return false;
     }
 
-    return channel === 'pre' ? Boolean(release.prerelease) : !release.prerelease;
+    return channel === 'pre' ? true : !release.prerelease;
   });
 
   candidates.sort((left, right) => {
@@ -191,6 +192,15 @@ const isTimeoutLikeError = (error: unknown) => {
 const isKnownBookPath = (filePath: string) => {
   const requestedPath = path.resolve(filePath);
   return getLocalBooks().some((book) => path.resolve(book.filePath) === requestedPath);
+};
+
+const isKnownDownloadPath = (filePath: string) => {
+  const requestedPath = path.resolve(filePath);
+  return getDownloadHistory().some((item) => (
+    item.status === 'completed' &&
+    typeof item.filePath === 'string' &&
+    path.resolve(item.filePath) === requestedPath
+  ));
 };
 
 const getProtectedCoverUrls = () => {
@@ -415,13 +425,6 @@ ipcMain.handle('search-libgen', async (_event, query: string): Promise<SearchRes
   }
 });
 
-// Helper to extract MD5
-const getMd5FromMirror = (mirror: string): string => {
-  const query = mirror.split('?')[1] || '';
-  const params = new URLSearchParams(query);
-  return params.get('md5') || '';
-};
-
 // IPC Handler: Download Book
 ipcMain.handle('download-book', async (event, entry: Entry) => {
   if (!isDownloadEntry(entry)) {
@@ -463,7 +466,7 @@ ipcMain.handle('download-book', async (event, entry: Entry) => {
 
     // 2. Fallback to standard LibGen details page scraping
     if (!downloadUrl) {
-      const md5 = getMd5FromMirror(entry.mirror);
+      const md5 = getMd5FromEntryMirror(entry.mirror);
       if (md5) {
         const detailUrl = adapter.getDetailPageURL(md5);
         const detailRes = await fetch(detailUrl, {
@@ -527,26 +530,42 @@ ipcMain.handle('download-book', async (event, entry: Entry) => {
       },
     });
 
-    // Save to local library DB
-    const resolvedCoverUrl = await resolveCoverImage(entry.coverUrl);
+    // Warm the cover cache without storing large data URLs in the library DB.
+    await resolveCoverImage(entry.coverUrl);
     const completedAt = new Date().toISOString();
+    const sourceKey = getEntrySourceKey(entry);
     addLocalBook({
       id: entry.id,
+      sourceKey,
+      dbId: entry.dbId,
       title: entry.title,
       authors: entry.authors,
       filePath: result.path,
       addedAt: new Date().toISOString(),
       format: entry.extension,
       size: entry.size,
-      coverUrl: resolvedCoverUrl || entry.coverUrl,
+      publisher: entry.publisher,
+      year: entry.year,
+      pages: entry.pages,
+      language: entry.language,
+      coverUrl: entry.coverUrl,
+      sourceMirror: entry.mirror,
     });
 
     upsertDownloadHistory({
       id: entry.id,
+      sourceKey,
+      dbId: entry.dbId,
       title: entry.title,
       authors: entry.authors,
+      publisher: entry.publisher,
+      year: entry.year,
+      pages: entry.pages,
+      language: entry.language,
       format: entry.extension,
       size: entry.size,
+      mirror: entry.mirror,
+      coverUrl: entry.coverUrl,
       status: "completed",
       progress: result.total,
       total: result.total,
@@ -575,10 +594,18 @@ ipcMain.handle('download-book', async (event, entry: Entry) => {
       console.log(`Download for book ${entry.id} was cancelled by user.`);
       upsertDownloadHistory({
         id: entry.id,
+        sourceKey: getEntrySourceKey(entry),
+        dbId: entry.dbId,
         title: entry.title,
         authors: entry.authors,
+        publisher: entry.publisher,
+        year: entry.year,
+        pages: entry.pages,
+        language: entry.language,
         format: entry.extension,
         size: entry.size,
+        mirror: entry.mirror,
+        coverUrl: entry.coverUrl,
         status: "cancelled",
         progress: progressBytes,
         total: fallbackTotal,
@@ -597,10 +624,18 @@ ipcMain.handle('download-book', async (event, entry: Entry) => {
       console.error('Download Book Error:', error);
       upsertDownloadHistory({
         id: entry.id,
+        sourceKey: getEntrySourceKey(entry),
+        dbId: entry.dbId,
         title: entry.title,
         authors: entry.authors,
+        publisher: entry.publisher,
+        year: entry.year,
+        pages: entry.pages,
+        language: entry.language,
         format: entry.extension,
         size: entry.size,
+        mirror: entry.mirror,
+        coverUrl: entry.coverUrl,
         status: "error",
         progress: progressBytes,
         total: fallbackTotal,
@@ -686,8 +721,8 @@ ipcMain.handle('open-book', async (_event, filePath: string) => {
       return { success: false, error: 'Invalid book path.' };
     }
 
-    if (!isKnownBookPath(filePath)) {
-      return { success: false, error: 'Book path is not registered in the local library.' };
+    if (!isKnownBookPath(filePath) && !isKnownDownloadPath(filePath)) {
+      return { success: false, error: 'File path is not registered in the local library or download history.' };
     }
 
     const error = await shell.openPath(filePath);
@@ -722,7 +757,7 @@ ipcMain.handle('check-for-updates', async () => {
         latestVersion: latestRelease.tag_name,
         currentVersion: `v${currentVersion}`,
         releaseUrl: latestRelease.html_url,
-        channel,
+        channel: latestRelease.prerelease ? 'pre' : 'stable',
       };
     }
     return { updateAvailable: false };

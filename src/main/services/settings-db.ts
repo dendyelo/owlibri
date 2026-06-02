@@ -1,6 +1,7 @@
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 import { app } from "electron";
+import { readJsonFile, writeJsonFile } from "./json-store";
 
 export interface AppSettings {
   bookcaseDir: string;
@@ -15,29 +16,23 @@ export const getDefaultBookcaseDir = () => {
 };
 
 export const getAppSettings = (): AppSettings => {
-  const settingsPath = getSettingsPath();
   const defaultDir = getDefaultBookcaseDir();
-  
-  if (!fs.existsSync(settingsPath)) {
-    return { bookcaseDir: defaultDir };
-  }
-  
-  try {
-    const data = fs.readFileSync(settingsPath, "utf-8");
-    const settings = JSON.parse(data);
-    return {
-      bookcaseDir: settings.bookcaseDir || defaultDir
-    };
-  } catch {
-    return { bookcaseDir: defaultDir };
-  }
+  const settings = readJsonFile<Partial<AppSettings>>(getSettingsPath(), {});
+  return {
+    bookcaseDir: typeof settings.bookcaseDir === "string" && settings.bookcaseDir.trim()
+      ? settings.bookcaseDir
+      : defaultDir,
+  };
 };
 
 export const saveAppSettings = (settings: Partial<AppSettings>): AppSettings => {
   const current = getAppSettings();
+  const bookcaseDir = typeof settings.bookcaseDir === "string" && settings.bookcaseDir.trim()
+    ? settings.bookcaseDir
+    : undefined;
   const updated = {
     ...current,
-    ...(typeof settings.bookcaseDir === "string" ? { bookcaseDir: settings.bookcaseDir } : {}),
+    ...(bookcaseDir ? { bookcaseDir } : {}),
   };
   
   // Ensure the bookcaseDir exists when saving
@@ -51,6 +46,6 @@ export const saveAppSettings = (settings: Partial<AppSettings>): AppSettings => 
     }
   }
   
-  fs.writeFileSync(getSettingsPath(), JSON.stringify(updated, null, 2), "utf-8");
+  writeJsonFile(getSettingsPath(), updated);
   return updated;
 };

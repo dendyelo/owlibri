@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import type { Entry } from "./main/services/entry";
 import type { AppSettings } from "./main/services/settings-db";
+import type { LocalBook } from "./main/services/library-db";
 
 type DownloadStatus = "downloading" | "completed" | "error" | "cancelled";
 
@@ -17,6 +18,7 @@ interface DownloadProgressPayload {
 interface DownloadCompletePayload {
   id: string;
   total: number;
+  books: LocalBook[];
   filePath?: string;
   filename?: string;
 }

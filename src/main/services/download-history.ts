@@ -1,15 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
+import { readJsonFile, writeJsonFile } from "./json-store";
 
 export type DownloadHistoryStatus = "completed" | "error" | "cancelled";
 
 export interface DownloadHistoryItem {
   id: string;
+  sourceKey?: string;
+  dbId?: string;
   title: string;
   authors: string;
+  publisher?: string;
+  year?: string;
+  pages?: string;
+  language?: string;
   format: string;
   size: string;
+  mirror?: string;
+  coverUrl?: string;
   status: DownloadHistoryStatus;
   progress: number;
   total: number;
@@ -47,23 +56,12 @@ const toOptionalString = (value: unknown) => {
 };
 
 const readHistoryFile = (): unknown[] => {
-  const historyPath = getHistoryPath();
-  if (!fs.existsSync(historyPath)) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(fs.readFileSync(historyPath, "utf-8"));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  const parsed = readJsonFile<unknown>(getHistoryPath(), []);
+  return Array.isArray(parsed) ? parsed : [];
 };
 
 const writeHistoryFile = (items: DownloadHistoryItem[]) => {
-  const historyPath = getHistoryPath();
-  fs.mkdirSync(path.dirname(historyPath), { recursive: true });
-  fs.writeFileSync(historyPath, JSON.stringify(items, null, 2), "utf-8");
+  writeJsonFile(getHistoryPath(), items);
 };
 
 const normalizeHistoryItem = (item: unknown): DownloadHistoryItem | null => {
@@ -86,10 +84,18 @@ const normalizeHistoryItem = (item: unknown): DownloadHistoryItem | null => {
 
   const normalized: DownloadHistoryItem = {
     id,
+    sourceKey: toOptionalString(item.sourceKey),
+    dbId: toOptionalString(item.dbId),
     title,
     authors,
+    publisher: toOptionalString(item.publisher),
+    year: toOptionalString(item.year),
+    pages: toOptionalString(item.pages),
+    language: toOptionalString(item.language),
     format,
     size,
+    mirror: toOptionalString(item.mirror),
+    coverUrl: toOptionalString(item.coverUrl),
     status,
     progress: toNumber(item.progress),
     total: toNumber(item.total),
@@ -124,15 +130,23 @@ export const upsertDownloadHistory = (item: DownloadHistoryItem): DownloadHistor
   const merged: DownloadHistoryItem = {
     ...(existing ?? {}),
     ...item,
+    sourceKey: item.sourceKey ?? existing?.sourceKey,
+    dbId: item.dbId ?? existing?.dbId,
+    publisher: item.publisher ?? existing?.publisher,
+    year: item.year ?? existing?.year,
+    pages: item.pages ?? existing?.pages,
+    language: item.language ?? existing?.language,
+    mirror: item.mirror ?? existing?.mirror,
+    coverUrl: item.coverUrl ?? existing?.coverUrl,
     progress: typeof item.progress === "number" ? item.progress : existing?.progress ?? 0,
     total: typeof item.total === "number" ? item.total : existing?.total ?? 0,
     speed: typeof item.speed === "number" ? item.speed : existing?.speed,
-    error: typeof item.error === "string" ? item.error : existing?.error,
-    filePath: typeof item.filePath === "string" ? item.filePath : existing?.filePath,
-    filename: typeof item.filename === "string" ? item.filename : existing?.filename,
+    error: item.status === "error" ? (item.error ?? existing?.error) : undefined,
+    filePath: item.status === "completed" ? (item.filePath ?? existing?.filePath) : undefined,
+    filename: item.status === "completed" ? (item.filename ?? existing?.filename) : undefined,
     addedAt: existing?.addedAt ?? item.addedAt ?? now,
     updatedAt: now,
-    completedAt: item.status === "completed" ? (item.completedAt ?? now) : existing?.completedAt,
+    completedAt: item.status === "completed" ? (item.completedAt ?? now) : undefined,
   };
 
   if (existingIndex >= 0) {

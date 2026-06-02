@@ -1,5 +1,5 @@
 import React, { useState, useEffect, FormEvent } from "react";
-import { Entry } from "./main/services/entry";
+import { Entry, getEntrySourceKey } from "./main/services/entry";
 import { LocalBook } from "./main/services/library-db";
 import type { DownloadHistoryItem } from "./main/services/download-history";
 import { formatBytesPerSecond, parseSizeToBytes } from "./main/services/utilities";
@@ -7,10 +7,18 @@ import logoImg from "./assets/icon.png";
 
 interface DownloadItem {
   id: string;
+  sourceKey?: string;
+  dbId?: string;
   title: string;
   authors: string;
+  publisher?: string;
+  year?: string;
+  pages?: string;
+  language?: string;
   format: string;
   size: string;
+  mirror?: string;
+  coverUrl?: string;
   status: "queued" | "downloading" | "completed" | "error" | "cancelled";
   progress: number;
   total: number;
@@ -80,10 +88,18 @@ const mapDownloadHistoryToItems = (history: DownloadHistoryItem[]) => {
   return history.reduce<Record<string, DownloadItem>>((accumulator, item) => {
     accumulator[item.id] = {
       id: item.id,
+      sourceKey: item.sourceKey,
+      dbId: item.dbId,
       title: item.title,
       authors: item.authors,
+      publisher: item.publisher,
+      year: item.year,
+      pages: item.pages,
+      language: item.language,
       format: item.format,
       size: item.size,
+      mirror: item.mirror,
+      coverUrl: item.coverUrl,
       status: item.status,
       progress: item.progress,
       total: item.total,
@@ -106,6 +122,12 @@ const formatFileSize = (bytes: number) => {
   const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(base)), units.length - 1);
   const value = bytes / Math.pow(base, unitIndex);
   return `${parseFloat(value.toFixed(value >= 10 ? 1 : 2))} ${units[unitIndex]}`;
+};
+
+const getDownloadSortTime = (item: DownloadItem) => {
+  const timestamp = item.updatedAt || item.completedAt || item.addedAt || "";
+  const parsed = Date.parse(timestamp);
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 function CoverImage({ coverUrl, alt, className }: CoverImageProps) {
@@ -242,6 +264,7 @@ export default function App() {
       setDownloads((prev) => {
         const existing = prev[data.id];
         if (!existing) return prev;
+        const completedAt = new Date().toISOString();
         const bookSize = data.books.find((book) => book.id === data.id)?.size || existing.size;
         const total = data.total || existing.total || parseSizeToBytes(bookSize) || 1;
         return {
@@ -255,7 +278,8 @@ export default function App() {
             filePath: data.filePath || existing.filePath,
             filename: data.filename || existing.filename,
             error: undefined,
-            completedAt: new Date().toISOString(),
+            updatedAt: completedAt,
+            completedAt,
           },
         };
       });
@@ -274,6 +298,7 @@ export default function App() {
             status: "error",
             error: data.error,
             speed: existing.speed,
+            updatedAt: new Date().toISOString(),
           },
         };
       });
@@ -320,19 +345,29 @@ export default function App() {
     }
 
     // Add to UI download queue
+    const queuedAt = new Date().toISOString();
     setDownloads((prev) => ({
       ...prev,
       [entry.id]: {
         id: entry.id,
+        sourceKey: getEntrySourceKey(entry),
+        dbId: entry.dbId,
         title: entry.title,
         authors: entry.authors,
+        publisher: entry.publisher,
+        year: entry.year,
+        pages: entry.pages,
+        language: entry.language,
         format: entry.extension,
         size: entry.size,
+        mirror: entry.mirror,
+        coverUrl: entry.coverUrl,
         status: "queued",
         progress: 0,
         total: 0,
         speed: 0,
-        addedAt: new Date().toISOString(),
+        addedAt: queuedAt,
+        updatedAt: queuedAt,
       },
     }));
 
@@ -398,6 +433,7 @@ export default function App() {
             status: "cancelled",
             error: undefined,
             speed: existing.speed,
+            updatedAt: new Date().toISOString(),
           },
         };
       });
@@ -469,22 +505,46 @@ export default function App() {
       return searchFilters.year === "newest" ? yearB - yearA : yearA - yearB;
     });
 
-  // Helper to check if a book is already downloaded
-  const isBookInLibrary = (title: string, authors: string) => {
-    return localBooks.some(
-      (b) =>
-        b.title.toLowerCase().trim() === title.toLowerCase().trim() &&
-        b.authors.toLowerCase().trim() === authors.toLowerCase().trim()
-    );
+  const getLocalBookForEntry = (entry: Entry) => {
+    const sourceKey = getEntrySourceKey(entry);
+    const normalizedTitle = entry.title.toLowerCase().trim();
+    const normalizedAuthors = entry.authors.toLowerCase().trim();
+    const normalizedFormat = entry.extension.toLowerCase().trim();
+    const normalizedSize = entry.size.toLowerCase().trim();
+
+    return localBooks.find((book) => {
+      if (book.sourceKey && book.sourceKey === sourceKey) {
+        return true;
+      }
+
+      return (
+        book.title.toLowerCase().trim() === normalizedTitle &&
+        book.authors.toLowerCase().trim() === normalizedAuthors &&
+        book.format.toLowerCase().trim() === normalizedFormat &&
+        book.size.toLowerCase().trim() === normalizedSize
+      );
+    });
   };
 
-  // Helper to get local book path
-  const getBookPathInLibrary = (title: string, authors: string) => {
-    return localBooks.find(
-      (b) =>
-        b.title.toLowerCase().trim() === title.toLowerCase().trim() &&
-        b.authors.toLowerCase().trim() === authors.toLowerCase().trim()
-    )?.filePath;
+  const getEntryFromDownloadItem = (item: DownloadItem): Entry | null => {
+    if (!item.mirror) {
+      return null;
+    }
+
+    return {
+      id: item.id,
+      dbId: item.dbId,
+      authors: item.authors,
+      title: item.title,
+      publisher: item.publisher || "",
+      year: item.year || "",
+      pages: item.pages || "",
+      language: item.language || "",
+      size: item.size,
+      extension: item.format,
+      mirror: item.mirror,
+      coverUrl: item.coverUrl,
+    };
   };
 
   const handleResetSearchFilters = () => {
@@ -905,8 +965,9 @@ export default function App() {
                 </div>
               ) : (
                 filteredSearchResults.map((entry) => {
-                  const inLibrary = isBookInLibrary(entry.title, entry.authors);
-                  const localPath = getBookPathInLibrary(entry.title, entry.authors);
+                  const localBook = getLocalBookForEntry(entry);
+                  const localPath = localBook?.filePath;
+                  const inLibrary = Boolean(localBook);
                   const activeDl = downloads[entry.id];
 
                   return (
@@ -1038,12 +1099,13 @@ export default function App() {
             ) : (
               <div className="downloads-list">
                 {Object.values(downloads)
-                  .reverse() // New downloads at the top
+                  .sort((left, right) => getDownloadSortTime(right) - getDownloadSortTime(left))
                   .map((item) => {
                     const percent = item.total > 0
                       ? Math.min(100, Math.round((item.progress / item.total) * 100))
                       : 0;
                     const etaLabel = getDownloadEtaLabel(item);
+                    const retryEntry = getEntryFromDownloadItem(item);
                     return (
                       <div key={item.id} className="download-row">
                         <div className="download-info">
@@ -1074,16 +1136,27 @@ export default function App() {
                                   </svg>
                                 </button>
                               ) : (
-                                <button
-                                  className="btn-remove-queue"
-                                  onClick={() => handleRemoveFromQueue(item.id)}
-                                  title="Remove from History"
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="cancel-icon">
-                                    <line x1="18" y1="6" x2="6" y2="18" />
-                                    <line x1="6" y1="6" x2="18" y2="18" />
-                                  </svg>
-                                </button>
+                                <>
+                                  {(item.status === "error" || item.status === "cancelled") && retryEntry && (
+                                    <button
+                                      className="btn btn-secondary btn-sm"
+                                      onClick={() => handleDownload(retryEntry)}
+                                      title="Retry download"
+                                    >
+                                      Retry
+                                    </button>
+                                  )}
+                                  <button
+                                    className="btn-remove-queue"
+                                    onClick={() => handleRemoveFromQueue(item.id)}
+                                    title="Remove from History"
+                                  >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="cancel-icon">
+                                      <line x1="18" y1="6" x2="6" y2="18" />
+                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>

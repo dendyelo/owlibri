@@ -165,6 +165,11 @@ export const downloadFile = async ({
           file.on("error", reject);
         });
 
+        const savedBytes = fs.existsSync(filePath) ? fs.statSync(filePath).size : bytesDownloaded;
+        if (fileTotalSize > 0 && savedBytes < fileTotalSize) {
+          throw new Error(`Downloaded file is incomplete: ${savedBytes} of ${fileTotalSize} bytes received.`);
+        }
+
         return {
           path: filePath,
           filename,
