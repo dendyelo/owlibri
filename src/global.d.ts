@@ -9,6 +9,7 @@ interface DownloadProgress {
   filename?: string;
   total: number;
   progress: number;
+  speed?: number;
 }
 
 interface DownloadComplete {

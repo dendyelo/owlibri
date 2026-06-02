@@ -256,6 +256,9 @@ ipcMain.handle('download-book', async (event, entry: Entry) => {
     }
 
     let progressBytes = 0;
+    const downloadStartedAt = Date.now();
+    let lastProgressAt = downloadStartedAt;
+    let smoothedSpeed = 0;
 
     const settings = getAppSettings();
     const bookcaseDir = settings.bookcaseDir;
@@ -266,22 +269,38 @@ ipcMain.handle('download-book', async (event, entry: Entry) => {
       downloadDir: bookcaseDir,
       signal: controller.signal,
       onStart: (filename, total) => {
+        lastProgressAt = Date.now();
+        smoothedSpeed = 0;
         event.sender.send('download-progress', {
           id: entry.id,
           status: 'downloading',
           filename,
           total,
           progress: 0,
+          speed: 0,
         });
       },
       onData: (filename, chunkLength, total) => {
         progressBytes += chunkLength;
+        const now = Date.now();
+        const elapsedMs = now - lastProgressAt;
+        if (elapsedMs > 0) {
+          const instantaneousSpeed = (chunkLength * 1000) / elapsedMs;
+          smoothedSpeed = smoothedSpeed === 0
+            ? instantaneousSpeed
+            : (smoothedSpeed * 0.8) + (instantaneousSpeed * 0.2);
+        } else if (progressBytes > 0) {
+          const elapsedFromStart = now - downloadStartedAt;
+          smoothedSpeed = elapsedFromStart > 0 ? (progressBytes * 1000) / elapsedFromStart : 0;
+        }
+        lastProgressAt = now;
         event.sender.send('download-progress', {
           id: entry.id,
           status: 'downloading',
           filename,
           total,
           progress: progressBytes,
+          speed: smoothedSpeed,
         });
       },
     });
@@ -314,6 +333,7 @@ ipcMain.handle('download-book', async (event, entry: Entry) => {
         status: 'cancelled',
         progress: 0,
         total: 0,
+        speed: 0,
       });
     } else {
       console.error('Download Book Error:', error);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, FormEvent } from "react";
 import { Entry } from "./main/services/entry";
 import { LocalBook } from "./main/services/library-db";
-import { parseSizeToBytes } from "./main/services/utilities";
+import { formatBytesPerSecond, parseSizeToBytes } from "./main/services/utilities";
 import logoImg from "./assets/icon.png";
 
 interface DownloadItem {
@@ -13,6 +13,7 @@ interface DownloadItem {
   status: "queued" | "downloading" | "completed" | "error" | "cancelled";
   progress: number;
   total: number;
+  speed?: number;
   error?: string;
 }
 
@@ -73,6 +74,7 @@ export default function App() {
             status: data.status,
             progress: data.progress,
             total: data.total || existing.total,
+            speed: data.speed ?? existing.speed,
           },
         };
       });
@@ -91,6 +93,7 @@ export default function App() {
             status: "completed",
             progress: total,
             total,
+            speed: existing.speed,
           },
         };
       });
@@ -108,6 +111,7 @@ export default function App() {
             ...existing,
             status: "error",
             error: data.error,
+            speed: existing.speed,
           },
         };
       });
@@ -156,6 +160,7 @@ export default function App() {
         status: "queued",
         progress: 0,
         total: 0,
+        speed: 0,
       },
     }));
 
@@ -208,6 +213,7 @@ export default function App() {
             ...existing,
             status: "cancelled",
             error: undefined,
+            speed: existing.speed,
           },
         };
       });
@@ -698,6 +704,11 @@ export default function App() {
                             {item.status === "downloading" && (
                               <span>
                                 {formatBytes(item.progress)} / {item.total > 0 ? formatBytes(item.total) : "unknown size"}
+                              </span>
+                            )}
+                            {item.status === "downloading" && (
+                              <span>
+                                {formatBytesPerSecond(item.speed || 0)}
                               </span>
                             )}
                             <span className={`status-text status-${item.status}`}>

@@ -11,6 +11,7 @@ interface DownloadProgressPayload {
   filename?: string;
   total: number;
   progress: number;
+  speed?: number;
 }
 
 interface DownloadCompletePayload {

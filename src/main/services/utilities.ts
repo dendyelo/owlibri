@@ -24,3 +24,16 @@ export function parseSizeToBytes(sizeStr: string): number {
     default: return val;
   }
 }
+
+export function formatBytesPerSecond(bytesPerSecond: number): string {
+  if (!bytesPerSecond || bytesPerSecond <= 0) {
+    return "0 B/s";
+  }
+
+  const units = ["B/s", "KB/s", "MB/s", "GB/s"];
+  const base = 1024;
+  const unitIndex = Math.min(Math.floor(Math.log(bytesPerSecond) / Math.log(base)), units.length - 1);
+  const value = bytesPerSecond / Math.pow(base, unitIndex);
+
+  return `${parseFloat(value.toFixed(value >= 10 ? 1 : 2))} ${units[unitIndex]}`;
+}
