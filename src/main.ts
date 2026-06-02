@@ -60,7 +60,7 @@ app.on('ready', async () => {
 
   // Set Dock icon on macOS during development/runtime
   if (process.platform === 'darwin') {
-    const iconPath = path.join(app.getAppPath(), 'src', 'assets', 'logo.jpg');
+    const iconPath = path.join(app.getAppPath(), 'src', 'assets', 'icon.png');
     if (fs.existsSync(iconPath)) {
       try {
         const image = nativeImage.createFromPath(iconPath);
