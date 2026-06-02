@@ -1321,8 +1321,14 @@ html[data-theme="light"] .update-banner {
 }
 
 html[data-theme="light"] .settings-toast {
-  background-color: rgba(16, 185, 129, 0.12);
-  box-shadow: 0 4px 15px rgba(15, 23, 42, 0.12);
+  background-color: rgba(15, 23, 42, 0.92);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.2);
+}
+
+html[data-theme="light"] .settings-toast .toast-icon {
+  color: #34d399;
 }
 
 html[data-theme="light"] .nav-item.active {
