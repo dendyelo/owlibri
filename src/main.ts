@@ -62,6 +62,10 @@ app.on('ready', async () => {
     isConnected = false;
   }
   console.log('Mirror connection status:', isConnected ? 'Connected' : 'Disconnected');
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('mirror-status-changed', { url: activeMirror, connected: isConnected });
+  }
 });
 
 app.on('window-all-closed', () => {

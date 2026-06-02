@@ -38,6 +38,10 @@ export default function App() {
       setMirrorStatus(status);
     });
 
+    const unsubscribeMirror = window.api.onMirrorStatusChanged((status) => {
+      setMirrorStatus(status);
+    });
+
     // 2. Download Event Listeners
     const unsubscribeProgress = window.api.onDownloadProgress((data) => {
       setDownloads((prev) => {
@@ -94,6 +98,7 @@ export default function App() {
       unsubscribeProgress();
       unsubscribeComplete();
       unsubscribeError();
+      unsubscribeMirror();
     };
   }, []);
 

@@ -28,5 +28,12 @@ contextBridge.exposeInMainWorld("api", {
     return () => {
       ipcRenderer.removeListener("download-error", subscription);
     };
+  },
+  onMirrorStatusChanged: (callback: (data: any) => void) => {
+    const subscription = (_event: any, data: any) => callback(data);
+    ipcRenderer.on("mirror-status-changed", subscription);
+    return () => {
+      ipcRenderer.removeListener("mirror-status-changed", subscription);
+    };
   }
 });
