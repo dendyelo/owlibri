@@ -38,7 +38,7 @@ const createWindow = () => {
   }
 
   // Open the DevTools (can be commented out for production release).
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
 };
 
 app.on('ready', async () => {
