@@ -1,6 +1,7 @@
 import React, { useState, useEffect, FormEvent } from "react";
 import { Entry } from "./main/services/entry";
 import { LocalBook } from "./main/services/library-db";
+import logoImg from "./assets/logo.jpg";
 
 interface DownloadItem {
   id: string;
@@ -224,11 +225,7 @@ export default function App() {
       {/* Sidebar navigation */}
       <aside className="sidebar">
         <div className="brand">
-          <svg className="brand-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
+          <img src={logoImg} className="brand-logo" alt="Logo" />
           <div className="brand-text">
             <h1>owlibri</h1>
             <span className="subtitle">personal library</span>

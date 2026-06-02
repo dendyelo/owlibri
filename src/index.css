@@ -89,10 +89,11 @@ body, html, #root {
 }
 
 .brand-logo {
-  width: 36px;
-  height: 36px;
-  color: var(--accent-gold);
-  filter: drop-shadow(0 0 8px var(--accent-glow));
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  filter: drop-shadow(0 0 6px var(--accent-glow));
 }
 
 .brand-text h1 {
