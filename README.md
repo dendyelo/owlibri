@@ -13,7 +13,7 @@ A premium, glassmorphic desktop bookcase and LibGen downloader.
 * **Intelligent Mirror Connection**: Features an automated mirror health checker in the sidebar that pings active mirrors dynamically, so you always know when the search servers are online.
 * **Cover Art Resolution**: Automatically parses and resolves book database IDs and MD5s to fetch cover previews dynamically.
 * **Advanced Download Manager**: 
-  * **High-Speed Downloads**: Dynamically utilizes a fast direct API to bypass HTML scraping, delivering near-instant downloads whenever possible.
+  * Optimized download streams for fast and reliable file transfers.
   * Displays real-time download progress, file sizes, and status indicators.
   * Native download cancellation support (instantly aborts network requests and cleans up partial temporary files from disk).
 * **System-Native Storage**: Saves all of your books in a dedicated, easy-to-access folder inside your user files: `Documents/owlibri/bookcase/`.
