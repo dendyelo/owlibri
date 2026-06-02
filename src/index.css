@@ -452,18 +452,20 @@ body, html, #root {
   top: 10px;
   right: 10px;
   font-size: 0.65rem;
-  font-weight: 700;
-  padding: 2px 6px;
+  font-weight: 800;
+  padding: 3px 8px;
   border-radius: 4px;
   letter-spacing: 0.5px;
   z-index: 2;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
 }
 
-/* Formats Specific styling */
-.format-pdf { background-color: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.25); }
-.format-epub { background-color: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.25); }
-.format-mobi { background-color: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.25); }
-.format-djvu { background-color: rgba(139, 92, 246, 0.15); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.25); }
+/* Formats Specific styling (High Contrast Legibility) */
+.format-pdf { background-color: rgba(239, 68, 68, 0.92); color: #ffffff; border: 1px solid rgba(239, 68, 68, 0.5); }
+.format-epub { background-color: rgba(16, 185, 129, 0.92); color: #ffffff; border: 1px solid rgba(16, 185, 129, 0.5); }
+.format-mobi { background-color: rgba(59, 130, 246, 0.92); color: #ffffff; border: 1px solid rgba(59, 130, 246, 0.5); }
+.format-djvu { background-color: rgba(139, 92, 246, 0.92); color: #ffffff; border: 1px solid rgba(139, 92, 246, 0.5); }
 
 .book-card-actions {
   display: flex;
