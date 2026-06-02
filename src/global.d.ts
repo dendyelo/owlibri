@@ -4,6 +4,7 @@ import type { Entry } from "./main/services/entry";
 import type { DownloadHistoryItem } from "./main/services/download-history";
 import type { LocalBook } from "./main/services/library-db";
 import type { CoverCacheStats } from "./main/services/cover-cache";
+import type { AppSettings } from "./main/services/settings-db";
 
 interface DownloadProgress {
   id: string;
@@ -63,8 +64,8 @@ interface ElectronAPI {
   getCoverCacheStats: () => Promise<CoverCacheStats>;
   cleanupCoverCache: () => Promise<{ removed: number; kept: number; total: number; protectedCount: number }>;
   clearCoverCache: () => Promise<{ removed: number; protectedCount: number; totalSizeBytes: number }>;
-  getSettings: () => Promise<{ bookcaseDir: string }>;
-  saveSettings: (settings: Partial<{ bookcaseDir: string }>) => Promise<{ bookcaseDir: string }>;
+  getSettings: () => Promise<AppSettings>;
+  saveSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>;
   getDefaultBookcaseDir: () => Promise<string>;
   selectDirectory: () => Promise<string | null>;
 }

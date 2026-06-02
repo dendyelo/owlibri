@@ -3,12 +3,21 @@ import path from "node:path";
 import { app } from "electron";
 import { readJsonFile, writeJsonFile } from "./json-store";
 
+export type ThemeMode = "dark" | "light";
+
 export interface AppSettings {
   bookcaseDir: string;
+  theme: ThemeMode;
 }
 
 const getSettingsPath = () => {
   return path.join(app.getPath("userData"), "settings.json");
+};
+
+const DEFAULT_THEME: ThemeMode = "dark";
+
+const isThemeMode = (value: unknown): value is ThemeMode => {
+  return value === "dark" || value === "light";
 };
 
 export const getDefaultBookcaseDir = () => {
@@ -22,6 +31,7 @@ export const getAppSettings = (): AppSettings => {
     bookcaseDir: typeof settings.bookcaseDir === "string" && settings.bookcaseDir.trim()
       ? settings.bookcaseDir
       : defaultDir,
+    theme: isThemeMode(settings.theme) ? settings.theme : DEFAULT_THEME,
   };
 };
 
@@ -33,6 +43,7 @@ export const saveAppSettings = (settings: Partial<AppSettings>): AppSettings => 
   const updated = {
     ...current,
     ...(bookcaseDir ? { bookcaseDir } : {}),
+    ...(isThemeMode(settings.theme) ? { theme: settings.theme } : {}),
   };
   
   // Ensure the bookcaseDir exists when saving

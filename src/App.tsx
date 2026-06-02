@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, FormEvent } from "react";
 import { Entry, getEntrySourceKey } from "./main/services/entry";
 import { LocalBook } from "./main/services/library-db";
+import type { ThemeMode } from "./main/services/settings-db";
 import type { DownloadHistoryItem } from "./main/services/download-history";
 import { formatBytesPerSecond, parseSizeToBytes } from "./main/services/utilities";
 import logoImg from "./assets/icon.png";
@@ -215,6 +216,7 @@ export default function App() {
   const [localBooks, setLocalBooks] = useState<LocalBook[]>([]);
   const [downloads, setDownloads] = useState<Record<string, DownloadItem>>({});
   const [bookcasePath, setBookcasePath] = useState("");
+  const [theme, setTheme] = useState<ThemeMode>("dark");
   const [mirrorStatus, setMirrorStatus] = useState<{ url: string; connected: boolean }>({
     url: "",
     connected: false,
@@ -229,6 +231,11 @@ export default function App() {
   const [coverCacheStats, setCoverCacheStats] = useState<{ fileCount: number; totalSizeBytes: number; protectedFileCount: number; removableExpiredFileCount: number } | null>(null);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const searchRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
 
   // Fetch local library books on mount and listen to download events
   useEffect(() => {
@@ -247,6 +254,7 @@ export default function App() {
 
     window.api.getSettings().then((settings) => {
       setBookcasePath(settings.bookcaseDir);
+      setTheme(settings.theme);
     });
 
     window.api.getCoverCacheStats().then((stats) => {
@@ -710,6 +718,21 @@ export default function App() {
     const updated = await window.api.saveSettings({ bookcaseDir: defaultPath });
     setBookcasePath(updated.bookcaseDir);
     triggerSavedToast();
+  };
+
+  const handleThemeChange = async (nextTheme: ThemeMode) => {
+    if (nextTheme === theme) {
+      return;
+    }
+
+    try {
+      const updated = await window.api.saveSettings({ theme: nextTheme });
+      setTheme(updated.theme);
+      triggerSettingsNotice(`${updated.theme === "light" ? "Light" : "Dark"} theme applied.`);
+    } catch (error) {
+      console.error("Failed to update theme:", error);
+      alert("Could not update theme.");
+    }
   };
 
   const triggerSettingsNotice = (message: string) => {
@@ -1400,6 +1423,49 @@ export default function App() {
             </div>
 
             <div className="settings-container">
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="settings-sec-icon">
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2" />
+                    <path d="M12 20v2" />
+                    <path d="m4.93 4.93 1.41 1.41" />
+                    <path d="m17.66 17.66 1.41 1.41" />
+                    <path d="M2 12h2" />
+                    <path d="M20 12h2" />
+                    <path d="m6.34 17.66-1.41 1.41" />
+                    <path d="m19.07 4.93-1.41 1.41" />
+                  </svg>
+                  <h3>Appearance</h3>
+                </div>
+                <div className="settings-card-body">
+                  <p className="settings-desc">
+                    Choose a visual theme that suits your environment. The selection is saved locally and applied immediately.
+                  </p>
+
+                  <div className="theme-switcher" role="group" aria-label="Theme selection">
+                    <button
+                      type="button"
+                      className={`theme-option ${theme === "dark" ? "active" : ""}`}
+                      onClick={() => handleThemeChange("dark")}
+                      aria-pressed={theme === "dark"}
+                    >
+                      <span className="theme-option-title">Dark</span>
+                      <span className="theme-option-desc">High contrast for low-light use.</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`theme-option ${theme === "light" ? "active" : ""}`}
+                      onClick={() => handleThemeChange("light")}
+                      aria-pressed={theme === "light"}
+                    >
+                      <span className="theme-option-title">Light</span>
+                      <span className="theme-option-desc">Bright, softer interface for daytime use.</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div className="settings-card">
                 <div className="settings-card-header">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="settings-sec-icon">
