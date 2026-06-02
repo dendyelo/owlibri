@@ -189,11 +189,22 @@ ipcMain.handle('download-book', async (event, entry: any) => {
       activeAbortControllers.delete(entry.id);
     }
   } catch (error) {
-    console.error('Download Book Error:', error);
-    event.sender.send('download-error', {
-      id: entry.id,
-      error: (error as Error).message,
-    });
+    const isCancelled = (error as Error).message === 'Download was cancelled by user.';
+    if (isCancelled) {
+      console.log(`Download for book ${entry.id} was cancelled by user.`);
+      event.sender.send('download-progress', {
+        id: entry.id,
+        status: 'cancelled',
+        progress: 0,
+        total: 0,
+      });
+    } else {
+      console.error('Download Book Error:', error);
+      event.sender.send('download-error', {
+        id: entry.id,
+        error: (error as Error).message,
+      });
+    }
     return { success: false, error: (error as Error).message };
   }
 });

@@ -8,7 +8,7 @@ interface DownloadItem {
   authors: string;
   format: string;
   size: string;
-  status: "queued" | "downloading" | "completed" | "error";
+  status: "queued" | "downloading" | "completed" | "error" | "cancelled";
   progress: number;
   total: number;
   error?: string;
@@ -38,7 +38,7 @@ export default function App() {
           ...prev,
           [data.id]: {
             ...existing,
-            status: "downloading",
+            status: data.status as any,
             progress: data.progress,
             total: data.total || existing.total,
           },
@@ -165,7 +165,7 @@ export default function App() {
 
     try {
       await window.api.cancelDownload(id);
-      // Update UI state to error / cancelled
+      // Update UI state to cancelled
       setDownloads((prev) => {
         const existing = prev[id];
         if (!existing) return prev;
@@ -173,8 +173,8 @@ export default function App() {
           ...prev,
           [id]: {
             ...existing,
-            status: "error",
-            error: "Cancelled by user.",
+            status: "cancelled",
+            error: undefined,
           },
         };
       });

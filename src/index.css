@@ -783,6 +783,7 @@ body, html, #root {
 .status-downloading { color: var(--color-info); }
 .status-completed { color: var(--color-success); }
 .status-error { color: var(--color-error); }
+.status-cancelled { color: var(--text-muted); }
 
 .download-progress-container {
   display: flex;

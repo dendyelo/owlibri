@@ -3,7 +3,7 @@ import { LocalBook } from "./main/services/library-db";
 
 export interface DownloadProgress {
   id: string;
-  status: 'downloading' | 'completed' | 'error';
+  status: 'downloading' | 'completed' | 'error' | 'cancelled';
   filename: string;
   total: number;
   progress: number;
