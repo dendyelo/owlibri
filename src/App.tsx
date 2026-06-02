@@ -291,9 +291,7 @@ export default function App() {
           <div className="mirror-status">
             <span className={`pulse-dot ${mirrorStatus.connected ? "connected" : "disconnected"}`}></span>
             <span className="status-label">
-              {mirrorStatus.connected
-                ? `Connected to ${mirrorStatus.url.replace(/https?:\/\/(www\.)?/, "").replace(/\/$/, "")}`
-                : "Disconnected"}
+              {mirrorStatus.connected ? "Connected" : "Disconnected"}
             </span>
           </div>
         </div>
