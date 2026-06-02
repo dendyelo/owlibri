@@ -587,6 +587,22 @@ export default function App() {
 
   const normalizeFilterValue = (value: string) => value.trim().toLowerCase();
 
+  const mergeSelectedFilterOption = (options: string[], selectedValue: string) => {
+    const mergedOptions = new Set<string>();
+
+    if (selectedValue !== "all") {
+      mergedOptions.add(selectedValue);
+    }
+
+    for (const option of options) {
+      if (option) {
+        mergedOptions.add(option);
+      }
+    }
+
+    return Array.from(mergedOptions);
+  };
+
   const getSearchFileType = (entry: Entry) => normalizeFilterValue(entry.extension || "unknown");
 
   const getSearchLanguage = (entry: Entry) => normalizeFilterValue(entry.language || "unknown");
@@ -596,13 +612,15 @@ export default function App() {
     return Number.isFinite(parsedYear) ? parsedYear : null;
   };
 
-  const searchFileTypeOptions = Array.from(
-    new Set(searchResults.map((entry) => getSearchFileType(entry)))
-  ).filter(Boolean);
+  const searchFileTypeOptions = mergeSelectedFilterOption(
+    Array.from(new Set(searchResults.map((entry) => getSearchFileType(entry)))).filter(Boolean),
+    searchFilters.fileType,
+  );
 
-  const searchLanguageOptions = Array.from(
-    new Set(searchResults.map((entry) => getSearchLanguage(entry)))
-  ).filter(Boolean);
+  const searchLanguageOptions = mergeSelectedFilterOption(
+    Array.from(new Set(searchResults.map((entry) => getSearchLanguage(entry)))).filter(Boolean),
+    searchFilters.language,
+  );
 
   const filteredSearchResults = [...searchResults]
     .filter((entry) => {
