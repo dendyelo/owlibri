@@ -15,7 +15,6 @@ Glassmorphic desktop bookcase and LibGen downloader.
 * Added search filters for file type, language, and year sorting.
 * Added live download speed display in the download queue.
 * Hardened download cancellation and file saving so downloads are safer and less likely to overwrite existing files.
-* Improved the GitHub release workflow so releases now include build artifacts and generated release notes.
 
 ---
 
