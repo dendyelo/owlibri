@@ -17,11 +17,22 @@ interface DownloadItem {
   error?: string;
 }
 
+interface SearchFilters {
+  fileType: string;
+  language: string;
+  year: "default" | "newest" | "oldest";
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<"bookcase" | "search" | "downloads" | "settings">("bookcase");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Entry[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    fileType: "all",
+    language: "all",
+    year: "default",
+  });
   const [localBooks, setLocalBooks] = useState<LocalBook[]>([]);
   const [downloads, setDownloads] = useState<Record<string, DownloadItem>>({});
   const [bookcasePath, setBookcasePath] = useState("");
@@ -134,6 +145,11 @@ export default function App() {
     try {
       const results = await window.api.searchLibgen(searchQuery);
       setSearchResults(results);
+      setSearchFilters({
+        fileType: "all",
+        language: "all",
+        year: "default",
+      });
     } catch (err) {
       console.error("Failed search:", err);
     } finally {
@@ -240,6 +256,46 @@ export default function App() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  const normalizeFilterValue = (value: string) => value.trim().toLowerCase();
+
+  const getSearchFileType = (entry: Entry) => normalizeFilterValue(entry.extension || "unknown");
+
+  const getSearchLanguage = (entry: Entry) => normalizeFilterValue(entry.language || "unknown");
+
+  const getSearchYear = (entry: Entry) => {
+    const parsedYear = Number.parseInt(entry.year || "", 10);
+    return Number.isFinite(parsedYear) ? parsedYear : null;
+  };
+
+  const searchFileTypeOptions = Array.from(
+    new Set(searchResults.map((entry) => getSearchFileType(entry)))
+  ).filter(Boolean);
+
+  const searchLanguageOptions = Array.from(
+    new Set(searchResults.map((entry) => getSearchLanguage(entry)))
+  ).filter(Boolean);
+
+  const filteredSearchResults = [...searchResults]
+    .filter((entry) => {
+      const matchesFileType = searchFilters.fileType === "all" || getSearchFileType(entry) === searchFilters.fileType;
+      const matchesLanguage = searchFilters.language === "all" || getSearchLanguage(entry) === searchFilters.language;
+      return matchesFileType && matchesLanguage;
+    })
+    .sort((a, b) => {
+      if (searchFilters.year === "default") {
+        return 0;
+      }
+
+      const yearA = getSearchYear(a);
+      const yearB = getSearchYear(b);
+
+      if (yearA === null && yearB === null) return 0;
+      if (yearA === null) return 1;
+      if (yearB === null) return -1;
+
+      return searchFilters.year === "newest" ? yearB - yearA : yearA - yearB;
+    });
+
   // Helper to check if a book is already downloaded
   const isBookInLibrary = (title: string, authors: string) => {
     return localBooks.some(
@@ -256,6 +312,14 @@ export default function App() {
         b.title.toLowerCase().trim() === title.toLowerCase().trim() &&
         b.authors.toLowerCase().trim() === authors.toLowerCase().trim()
     )?.filePath;
+  };
+
+  const handleResetSearchFilters = () => {
+    setSearchFilters({
+      fileType: "all",
+      language: "all",
+      year: "default",
+    });
   };
 
   const handleChangeDirectory = async () => {
@@ -516,8 +580,84 @@ export default function App() {
             </form>
 
             {searchResults.length > 0 && (
+              <div className="search-filters">
+                <div className="search-filter-group">
+                  <label htmlFor="file-type-filter" className="search-filter-label">
+                    File Type
+                  </label>
+                  <select
+                    id="file-type-filter"
+                    className="search-filter-select"
+                    value={searchFilters.fileType}
+                    onChange={(e) => setSearchFilters((prev) => ({ ...prev, fileType: e.target.value }))}
+                  >
+                    <option value="all">All types</option>
+                    {searchFileTypeOptions.map((fileType) => (
+                      <option key={fileType} value={fileType}>
+                        {fileType.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="search-filter-group">
+                  <label htmlFor="language-filter" className="search-filter-label">
+                    Language
+                  </label>
+                  <select
+                    id="language-filter"
+                    className="search-filter-select"
+                    value={searchFilters.language}
+                    onChange={(e) => setSearchFilters((prev) => ({ ...prev, language: e.target.value }))}
+                  >
+                    <option value="all">All languages</option>
+                    {searchLanguageOptions.map((language) => (
+                      <option key={language} value={language}>
+                        {language.charAt(0).toUpperCase() + language.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="search-filter-group">
+                  <label htmlFor="year-sort" className="search-filter-label">
+                    Year
+                  </label>
+                  <select
+                    id="year-sort"
+                    className="search-filter-select"
+                    value={searchFilters.year}
+                    onChange={(e) =>
+                      setSearchFilters((prev) => ({
+                        ...prev,
+                        year: e.target.value as SearchFilters["year"],
+                      }))
+                    }
+                  >
+                    <option value="default">Default order</option>
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm search-filter-reset"
+                  onClick={handleResetSearchFilters}
+                  disabled={
+                    searchFilters.fileType === "all" &&
+                    searchFilters.language === "all" &&
+                    searchFilters.year === "default"
+                  }
+                >
+                  Reset Filters
+                </button>
+              </div>
+            )}
+
+            {searchResults.length > 0 && (
               <div className="search-results-meta">
-                Found {searchResults.length} books for your query.
+                Found {filteredSearchResults.length} of {searchResults.length} books for your query.
               </div>
             )}
 
@@ -535,8 +675,16 @@ export default function App() {
                   </svg>
                   <p>Enter a query above to search for books online.</p>
                 </div>
+              ) : filteredSearchResults.length === 0 ? (
+                <div className="search-empty-state">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="search-icon-large">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <p>No results match the filters. Try resetting the search filters.</p>
+                </div>
               ) : (
-                searchResults.map((entry) => {
+                filteredSearchResults.map((entry) => {
                   const inLibrary = isBookInLibrary(entry.title, entry.authors);
                   const localPath = getBookPathInLibrary(entry.title, entry.authors);
                   const activeDl = downloads[entry.id];
