@@ -21,6 +21,8 @@ export interface DownloadResult {
 export const downloadFile = async ({
   downloadUrl,
   estimatedTotalBytes,
+  downloadDir,
+  signal,
   onStart,
   onData,
 }: downloadFileArguments): Promise<DownloadResult> => {
