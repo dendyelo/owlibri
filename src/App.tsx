@@ -1,6 +1,7 @@
 import React, { useState, useEffect, FormEvent } from "react";
 import { Entry } from "./main/services/entry";
 import { LocalBook } from "./main/services/library-db";
+import { parseSizeToBytes } from "./main/services/utilities";
 import logoImg from "./assets/icon.png";
 
 interface DownloadItem {
@@ -69,7 +70,7 @@ export default function App() {
           ...prev,
           [data.id]: {
             ...existing,
-            status: data.status as any,
+            status: data.status,
             progress: data.progress,
             total: data.total || existing.total,
           },
@@ -81,15 +82,15 @@ export default function App() {
       setDownloads((prev) => {
         const existing = prev[data.id];
         if (!existing) return prev;
+        const bookSize = data.books.find((book) => book.id === data.id)?.size || existing.size;
+        const total = data.total || existing.total || parseSizeToBytes(bookSize) || 1;
         return {
           ...prev,
           [data.id]: {
             ...existing,
             status: "completed",
-            progress: existing.total || data.books.find(b => b.id === data.id)?.size 
-              ? parseFloat(data.books.find(b => b.id === data.id)?.size || "0") * 1024 * 1024 
-              : 1,
-            total: existing.total || 1,
+            progress: total,
+            total,
           },
         };
       });
@@ -588,6 +589,13 @@ export default function App() {
                           >
                             Read Now
                           </button>
+                        ) : activeDl?.status === "error" || activeDl?.status === "cancelled" ? (
+                          <button
+                            className="btn btn-primary btn-full"
+                            onClick={() => handleDownload(entry)}
+                          >
+                            Retry Download
+                          </button>
                         ) : activeDl ? (
                           <button
                             className="btn btn-primary btn-full"
@@ -604,7 +612,6 @@ export default function App() {
                               </>
                             )}
                             {activeDl.status === "completed" && "Completed"}
-                            {activeDl.status === "error" && "Retry Download"}
                           </button>
                         ) : (
                           <button
@@ -648,7 +655,9 @@ export default function App() {
                 {Object.values(downloads)
                   .reverse() // New downloads at the top
                   .map((item) => {
-                    const percent = item.total > 0 ? Math.round((item.progress / item.total) * 100) : 0;
+                    const percent = item.total > 0
+                      ? Math.min(100, Math.round((item.progress / item.total) * 100))
+                      : 0;
                     return (
                       <div key={item.id} className="download-row">
                         <div className="download-info">

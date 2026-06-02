@@ -1,7 +1,6 @@
 import contentDisposition from "content-disposition";
 import fs from "fs";
 import path from "path";
-import os from "os";
 
 interface downloadFileArguments {
   downloadUrl: string;
@@ -17,6 +16,41 @@ export interface DownloadResult {
   filename: string;
   total: number;
 }
+
+const getFallbackFilename = (downloadUrl: string): string => {
+  try {
+    const pathname = new URL(downloadUrl).pathname;
+    return decodeURIComponent(path.basename(pathname)) || "downloaded-book";
+  } catch {
+    return "downloaded-book";
+  }
+};
+
+const getUniqueFilePath = (downloadDir: string, filename: string): string => {
+  const extension = path.extname(filename);
+  const basename = path.basename(filename, extension);
+  let candidate = path.join(downloadDir, filename);
+  let suffix = 1;
+
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(downloadDir, `${basename} (${suffix})${extension}`);
+    suffix += 1;
+  }
+
+  return candidate;
+};
+
+const removePartialFile = (filePath: string, reason: string) => {
+  if (!filePath || !fs.existsSync(filePath)) {
+    return;
+  }
+
+  try {
+    fs.unlinkSync(filePath);
+  } catch (error) {
+    console.warn(`Failed to remove partial download after ${reason}:`, error);
+  }
+};
 
 export const downloadFile = async ({
   downloadUrl,
@@ -53,13 +87,12 @@ export const downloadFile = async ({
 
       if (retries === 0) {
         const downloadContentDisposition = response.headers.get("content-disposition");
-        if (!downloadContentDisposition) {
-          throw new Error("No content-disposition header found");
-        }
-
-        const parsedContentDisposition = contentDisposition.parse(downloadContentDisposition);
-        const fullFileName = parsedContentDisposition.parameters.filename;
-        const sanitizedFileName = fullFileName.replace(/[\/\\:*?"<>|]/g, "_");
+        const parsedContentDisposition = downloadContentDisposition
+          ? contentDisposition.parse(downloadContentDisposition)
+          : null;
+        const fullFileName =
+          parsedContentDisposition?.parameters.filename || getFallbackFilename(downloadUrl);
+        const sanitizedFileName = fullFileName.replace(/[/\\:*?"<>|]/g, "_");
         const slicedFileName = sanitizedFileName.slice(
           Math.max(sanitizedFileName.length - MAX_FILE_NAME_LENGTH, 0)
         );
@@ -67,8 +100,8 @@ export const downloadFile = async ({
         if (!fs.existsSync(downloadDir)) {
           fs.mkdirSync(downloadDir, { recursive: true });
         }
-        filePath = path.join(downloadDir, slicedFileName);
-        filename = fullFileName;
+        filePath = getUniqueFilePath(downloadDir, slicedFileName);
+        filename = path.basename(filePath);
         const contentLength = Number(response.headers.get("content-length") || 0);
         fileTotalSize = contentLength > 0 ? contentLength : (estimatedTotalBytes || 0);
 
@@ -95,7 +128,7 @@ export const downloadFile = async ({
       const reader = response.body.getReader();
 
       try {
-        while (true) {
+        for (;;) {
           if (signal?.aborted) {
             throw new Error("Download was cancelled by user.");
           }
@@ -143,19 +176,13 @@ export const downloadFile = async ({
       }
     } catch (error) {
       if (signal?.aborted || (error as Error).name === "AbortError") {
-        if (filePath && fs.existsSync(filePath)) {
-          try {
-            fs.unlinkSync(filePath);
-          } catch {}
-        }
+        removePartialFile(filePath, "cancellation");
         throw new Error("Download was cancelled by user.");
       }
       retries++;
       if (retries >= MAX_RETRIES) {
-        if (filePath && fs.existsSync(filePath) && bytesDownloaded < fileTotalSize) {
-          try {
-            fs.unlinkSync(filePath);
-          } catch {}
+        if (filePath && (fileTotalSize === 0 || bytesDownloaded < fileTotalSize)) {
+          removePartialFile(filePath, "download failure");
         }
         throw new Error(`(${filename || "Unknown file"}) Error occurred while downloading file: ${(error as Error).message}`);
       }

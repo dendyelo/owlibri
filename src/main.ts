@@ -6,9 +6,11 @@ import { detectActiveMirror } from './main/services/mirror-detector';
 import { LibgenPlusAdapter } from './main/services/libgen-plus-adapter';
 import { downloadFile } from './main/services/download';
 import { getLocalBooks, addLocalBook, deleteLocalBook } from './main/services/library-db';
+import type { Entry } from './main/services/entry';
 import { parseHTML } from 'linkedom';
 import { parseSizeToBytes } from './main/services/utilities';
 import { getAppSettings, saveAppSettings, getDefaultBookcaseDir } from './main/services/settings-db';
+import type { AppSettings } from './main/services/settings-db';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -19,6 +21,57 @@ let mainWindow: BrowserWindow | null = null;
 let activeMirror = 'https://libgen.li/';
 let isConnected = false;
 const activeAbortControllers = new Map<string, AbortController>();
+const SEARCH_TIMEOUT_MS = 10000;
+const DETAIL_TIMEOUT_MS = 10000;
+const UPDATE_TIMEOUT_MS = 5000;
+
+interface GitHubRelease {
+  tag_name?: string;
+  html_url?: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null;
+};
+
+const isDownloadEntry = (entry: unknown): entry is Entry => {
+  if (!isRecord(entry)) {
+    return false;
+  }
+
+  return ['id', 'title', 'authors', 'size', 'extension', 'mirror'].every(
+    (key) => typeof entry[key] === 'string',
+  );
+};
+
+const createRequestSignal = (signal: AbortSignal | undefined, timeoutMs: number) => {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+};
+
+const isAbortError = (error: unknown) => {
+  return error instanceof Error && (
+    error.name === 'AbortError' ||
+    error.message === 'Download was cancelled by user.'
+  );
+};
+
+const isKnownBookPath = (filePath: string) => {
+  const requestedPath = path.resolve(filePath);
+  return getLocalBooks().some((book) => path.resolve(book.filePath) === requestedPath);
+};
+
+const getSafeExternalUrl = (url: string) => {
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== 'https:' || parsedUrl.hostname !== 'github.com') {
+      return null;
+    }
+    return parsedUrl.toString();
+  } catch {
+    return null;
+  }
+};
 
 const createWindow = () => {
   // Create the browser window.
@@ -103,14 +156,27 @@ app.on('activate', () => {
 // IPC Handler: Search LibGen
 ipcMain.handle('search-libgen', async (_event, query: string) => {
   try {
+    if (typeof query !== 'string') {
+      return [];
+    }
+
+    if (!query.trim()) {
+      return [];
+    }
+
     const adapter = new LibgenPlusAdapter(activeMirror);
     const searchUrl = adapter.getSearchURL(query, 1, 25);
     
-    const response = await fetch(searchUrl);
+    const response = await fetch(searchUrl, {
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      throw new Error(`Search request failed: ${response.status} ${response.statusText}`);
+    }
     const htmlText = await response.text();
     const { document } = parseHTML(htmlText);
     
-    const entries = adapter.parseEntries(document as any);
+    const entries = adapter.parseEntries(document as unknown as Document);
     
     // Resolve absolute cover image URLs
     entries.forEach(entry => {
@@ -134,7 +200,18 @@ const getMd5FromMirror = (mirror: string): string => {
 };
 
 // IPC Handler: Download Book
-ipcMain.handle('download-book', async (event, entry: any) => {
+ipcMain.handle('download-book', async (event, entry: Entry) => {
+  if (!isDownloadEntry(entry)) {
+    return { success: false, error: 'Invalid download entry.' };
+  }
+
+  if (activeAbortControllers.has(entry.id)) {
+    return { success: false, error: 'Download is already active.' };
+  }
+
+  const controller = new AbortController();
+  activeAbortControllers.set(entry.id, controller);
+
   try {
     const adapter = new LibgenPlusAdapter(activeMirror);
     let downloadUrl: string | undefined = undefined;
@@ -143,11 +220,16 @@ ipcMain.handle('download-book', async (event, entry: any) => {
     if (entry.dbId) {
       const fastUrl = `https://libgen.download/api/download?id=${entry.dbId}`;
       try {
-        const checkFast = await fetch(fastUrl, { signal: AbortSignal.timeout(3000) });
+        const checkFast = await fetch(fastUrl, {
+          signal: createRequestSignal(controller.signal, 3000),
+        });
         if (checkFast.ok) {
           downloadUrl = fastUrl;
         }
-      } catch {
+      } catch (error) {
+        if (controller.signal.aborted) {
+          throw error;
+        }
         // ignore and fallback
       }
     }
@@ -157,10 +239,15 @@ ipcMain.handle('download-book', async (event, entry: any) => {
       const md5 = getMd5FromMirror(entry.mirror);
       if (md5) {
         const detailUrl = adapter.getDetailPageURL(md5);
-        const detailRes = await fetch(detailUrl);
+        const detailRes = await fetch(detailUrl, {
+          signal: createRequestSignal(controller.signal, DETAIL_TIMEOUT_MS),
+        });
+        if (!detailRes.ok) {
+          throw new Error(`Detail page request failed: ${detailRes.status} ${detailRes.statusText}`);
+        }
         const detailHtml = await detailRes.text();
         const { document } = parseHTML(detailHtml);
-        downloadUrl = adapter.getMainDownloadURLFromDocument(document as any);
+        downloadUrl = adapter.getMainDownloadURLFromDocument(document as unknown as Document);
       }
     }
 
@@ -172,59 +259,54 @@ ipcMain.handle('download-book', async (event, entry: any) => {
 
     const settings = getAppSettings();
     const bookcaseDir = settings.bookcaseDir;
-    const controller = new AbortController();
-    activeAbortControllers.set(entry.id, controller);
 
-    try {
-      const result = await downloadFile({
-        downloadUrl,
-        estimatedTotalBytes: parseSizeToBytes(entry.size),
-        downloadDir: bookcaseDir,
-        signal: controller.signal,
-        onStart: (filename, total) => {
-          event.sender.send('download-progress', {
-            id: entry.id,
-            status: 'downloading',
-            filename,
-            total,
-            progress: 0,
-          });
-        },
-        onData: (filename, chunkLength, total) => {
-          progressBytes += chunkLength;
-          event.sender.send('download-progress', {
-            id: entry.id,
-            status: 'downloading',
-            filename,
-            total,
-            progress: progressBytes,
-          });
-        },
-      });
+    const result = await downloadFile({
+      downloadUrl,
+      estimatedTotalBytes: parseSizeToBytes(entry.size),
+      downloadDir: bookcaseDir,
+      signal: controller.signal,
+      onStart: (filename, total) => {
+        event.sender.send('download-progress', {
+          id: entry.id,
+          status: 'downloading',
+          filename,
+          total,
+          progress: 0,
+        });
+      },
+      onData: (filename, chunkLength, total) => {
+        progressBytes += chunkLength;
+        event.sender.send('download-progress', {
+          id: entry.id,
+          status: 'downloading',
+          filename,
+          total,
+          progress: progressBytes,
+        });
+      },
+    });
 
-      // Save to local library DB
-      addLocalBook({
-        id: entry.id,
-        title: entry.title,
-        authors: entry.authors,
-        filePath: result.path,
-        addedAt: new Date().toISOString(),
-        format: entry.extension,
-        size: entry.size,
-        coverUrl: entry.coverUrl,
-      });
+    // Save to local library DB
+    addLocalBook({
+      id: entry.id,
+      title: entry.title,
+      authors: entry.authors,
+      filePath: result.path,
+      addedAt: new Date().toISOString(),
+      format: entry.extension,
+      size: entry.size,
+      coverUrl: entry.coverUrl,
+    });
 
-      event.sender.send('download-complete', {
-        id: entry.id,
-        books: getLocalBooks(),
-      });
+    event.sender.send('download-complete', {
+      id: entry.id,
+      total: result.total,
+      books: getLocalBooks(),
+    });
 
-      return { success: true, path: result.path };
-    } finally {
-      activeAbortControllers.delete(entry.id);
-    }
+    return { success: true, path: result.path };
   } catch (error) {
-    const isCancelled = (error as Error).message === 'Download was cancelled by user.';
+    const isCancelled = controller.signal.aborted || isAbortError(error);
     if (isCancelled) {
       console.log(`Download for book ${entry.id} was cancelled by user.`);
       event.sender.send('download-progress', {
@@ -241,6 +323,8 @@ ipcMain.handle('download-book', async (event, entry: any) => {
       });
     }
     return { success: false, error: (error as Error).message };
+  } finally {
+    activeAbortControllers.delete(entry.id);
   }
 });
 
@@ -270,7 +354,6 @@ ipcMain.handle('cancel-download', async (_event, id: string) => {
     const controller = activeAbortControllers.get(id);
     if (controller) {
       controller.abort();
-      activeAbortControllers.delete(id);
     }
     return { success: true };
   } catch (error) {
@@ -282,6 +365,14 @@ ipcMain.handle('cancel-download', async (_event, id: string) => {
 // IPC Handler: Open Book with OS default viewer
 ipcMain.handle('open-book', async (_event, filePath: string) => {
   try {
+    if (typeof filePath !== 'string') {
+      return { success: false, error: 'Invalid book path.' };
+    }
+
+    if (!isKnownBookPath(filePath)) {
+      return { success: false, error: 'Book path is not registered in the local library.' };
+    }
+
     const error = await shell.openPath(filePath);
     if (error) {
       return { success: false, error };
@@ -299,9 +390,10 @@ ipcMain.handle('check-for-updates', async () => {
       headers: {
         'User-Agent': 'owlibri-app',
       },
+      signal: AbortSignal.timeout(UPDATE_TIMEOUT_MS),
     });
     if (!response.ok) return { updateAvailable: false };
-    const data = (await response.json()) as any;
+    const data = (await response.json()) as GitHubRelease;
     const latestVersion = data.tag_name ? data.tag_name.replace(/^v/, '') : '';
     const currentVersion = app.getVersion();
 
@@ -336,7 +428,16 @@ ipcMain.handle('check-for-updates', async () => {
 // IPC Handler: Open External URL in Default Web Browser
 ipcMain.handle('open-external', async (_event, url: string) => {
   try {
-    await shell.openExternal(url);
+    if (typeof url !== 'string') {
+      return { success: false, error: 'Invalid external URL.' };
+    }
+
+    const safeUrl = getSafeExternalUrl(url);
+    if (!safeUrl) {
+      return { success: false, error: 'External URL is not allowed.' };
+    }
+
+    await shell.openExternal(safeUrl);
     return { success: true };
   } catch (error) {
     console.error('Open External Error:', error);
@@ -350,7 +451,7 @@ ipcMain.handle('get-settings', () => {
 });
 
 // IPC Handler: Save Settings
-ipcMain.handle('save-settings', (_event, settings: any) => {
+ipcMain.handle('save-settings', (_event, settings: Partial<AppSettings>) => {
   return saveAppSettings(settings);
 });
 

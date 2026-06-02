@@ -42,7 +42,7 @@ export const addLocalBook = (book: LocalBook) => {
   fs.writeFileSync(getDbPath(), JSON.stringify(books, null, 2), "utf-8");
 };
 
-export const deleteLocalBook = (id: string, deleteFile: boolean = true): LocalBook[] => {
+export const deleteLocalBook = (id: string, deleteFile = true): LocalBook[] => {
   const books = getLocalBooks();
   const book = books.find(b => b.id === id);
   if (!book) return books;

@@ -1,31 +1,34 @@
-import { Entry } from "./main/services/entry";
-import { LocalBook } from "./main/services/library-db";
+/// <reference types="vite/client" />
 
-export interface DownloadProgress {
+import type { Entry } from "./main/services/entry";
+import type { LocalBook } from "./main/services/library-db";
+
+interface DownloadProgress {
   id: string;
-  status: 'downloading' | 'completed' | 'error' | 'cancelled';
-  filename: string;
+  status: "downloading" | "completed" | "error" | "cancelled";
+  filename?: string;
   total: number;
   progress: number;
 }
 
-export interface DownloadComplete {
+interface DownloadComplete {
   id: string;
+  total: number;
   books: LocalBook[];
 }
 
-export interface DownloadError {
+interface DownloadError {
   id: string;
   error: string;
 }
 
-export interface ElectronAPI {
+interface ElectronAPI {
   searchLibgen: (query: string) => Promise<Entry[]>;
   downloadBook: (entry: Entry) => Promise<{ success: boolean; path?: string; error?: string }>;
   getLocalBooks: () => Promise<LocalBook[]>;
   openBook: (filePath: string) => Promise<{ success: boolean; error?: string }>;
   deleteBook: (id: string) => Promise<LocalBook[]>;
-  cancelDownload: (id: string) => Promise<void>;
+  cancelDownload: (id: string) => Promise<{ success: boolean; error?: string }>;
   getMirrorStatus: () => Promise<{ url: string; connected: boolean }>;
   onDownloadProgress: (callback: (data: DownloadProgress) => void) => () => void;
   onDownloadComplete: (callback: (data: DownloadComplete) => void) => () => void;
@@ -39,7 +42,7 @@ export interface ElectronAPI {
   }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
   getSettings: () => Promise<{ bookcaseDir: string }>;
-  saveSettings: (settings: { bookcaseDir: string }) => Promise<{ bookcaseDir: string }>;
+  saveSettings: (settings: Partial<{ bookcaseDir: string }>) => Promise<{ bookcaseDir: string }>;
   getDefaultBookcaseDir: () => Promise<string>;
   selectDirectory: () => Promise<string | null>;
 }
@@ -49,3 +52,5 @@ declare global {
     api: ElectronAPI;
   }
 }
+
+export {};

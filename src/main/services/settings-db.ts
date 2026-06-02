@@ -35,7 +35,10 @@ export const getAppSettings = (): AppSettings => {
 
 export const saveAppSettings = (settings: Partial<AppSettings>): AppSettings => {
   const current = getAppSettings();
-  const updated = { ...current, ...settings };
+  const updated = {
+    ...current,
+    ...(typeof settings.bookcaseDir === "string" ? { bookcaseDir: settings.bookcaseDir } : {}),
+  };
   
   // Ensure the bookcaseDir exists when saving
   if (updated.bookcaseDir) {
