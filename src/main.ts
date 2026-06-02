@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -57,6 +57,19 @@ app.on('ready', async () => {
   }
 
   createWindow();
+
+  // Set Dock icon on macOS during development/runtime
+  if (process.platform === 'darwin') {
+    const iconPath = path.join(app.getAppPath(), 'src', 'assets', 'logo.jpg');
+    if (fs.existsSync(iconPath)) {
+      try {
+        const image = nativeImage.createFromPath(iconPath);
+        app.dock.setIcon(image);
+      } catch (err) {
+        console.error('Failed to set Dock icon:', err);
+      }
+    }
+  }
   // Detect active mirror asynchronously at startup
   activeMirror = await detectActiveMirror();
   console.log('Using active LibGen mirror:', activeMirror);
