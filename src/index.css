@@ -769,6 +769,13 @@ body, html, #root {
   text-align: right;
 }
 
+.result-action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
 /* Spinner Animations */
 .spinner {
   display: inline-block;
@@ -806,6 +813,18 @@ body, html, #root {
   width: 48px;
   height: 48px;
   color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.search-error-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background-color: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  color: var(--color-error);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
   margin-bottom: 1rem;
 }
 
@@ -920,6 +939,7 @@ body, html, #root {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .btn-cancel-download,
@@ -944,6 +964,10 @@ body, html, #root {
 .btn-remove-queue:hover {
   background-color: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
+}
+
+.btn-open-file {
+  white-space: nowrap;
 }
 
 .cancel-icon {
@@ -1110,6 +1134,40 @@ body, html, #root {
   margin-top: 0.5rem;
 }
 
+.settings-card-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.settings-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.settings-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.settings-stat span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.settings-stat strong {
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
 .btn-text-link {
   background: transparent;
   border: none;
@@ -1154,4 +1212,14 @@ body, html, #root {
 .toast-icon {
   width: 16px;
   height: 16px;
+}
+
+@media (max-width: 768px) {
+  .settings-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .download-title-actions {
+    justify-content: flex-start;
+  }
 }

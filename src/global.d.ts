@@ -1,7 +1,9 @@
 /// <reference types="vite/client" />
 
 import type { Entry } from "./main/services/entry";
+import type { DownloadHistoryItem } from "./main/services/download-history";
 import type { LocalBook } from "./main/services/library-db";
+import type { CoverCacheStats } from "./main/services/cover-cache";
 
 interface DownloadProgress {
   id: string;
@@ -16,6 +18,8 @@ interface DownloadComplete {
   id: string;
   total: number;
   books: LocalBook[];
+  filePath?: string;
+  filename?: string;
 }
 
 interface DownloadError {
@@ -24,12 +28,18 @@ interface DownloadError {
 }
 
 interface ElectronAPI {
-  searchLibgen: (query: string) => Promise<Entry[]>;
+  searchLibgen: (query: string) => Promise<{
+    success: boolean;
+    entries: Entry[];
+    error?: string;
+  }>;
   downloadBook: (entry: Entry) => Promise<{ success: boolean; path?: string; error?: string }>;
   getLocalBooks: () => Promise<LocalBook[]>;
+  getDownloadHistory: () => Promise<DownloadHistoryItem[]>;
   openBook: (filePath: string) => Promise<{ success: boolean; error?: string }>;
   deleteBook: (id: string) => Promise<LocalBook[]>;
   cancelDownload: (id: string) => Promise<{ success: boolean; error?: string }>;
+  deleteDownloadHistory: (id: string) => Promise<DownloadHistoryItem[]>;
   getMirrorStatus: () => Promise<{ url: string; connected: boolean }>;
   onDownloadProgress: (callback: (data: DownloadProgress) => void) => () => void;
   onDownloadComplete: (callback: (data: DownloadComplete) => void) => () => void;
@@ -40,8 +50,13 @@ interface ElectronAPI {
     latestVersion?: string;
     currentVersion?: string;
     releaseUrl?: string;
+    channel?: "stable" | "pre";
   }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+  resolveCoverImage: (coverUrl: string) => Promise<{ success: boolean; coverUrl?: string; error?: string }>;
+  getCoverCacheStats: () => Promise<CoverCacheStats>;
+  cleanupCoverCache: () => Promise<{ removed: number; kept: number; total: number; protectedCount: number }>;
+  clearCoverCache: () => Promise<{ removed: number; protectedCount: number; totalSizeBytes: number }>;
   getSettings: () => Promise<{ bookcaseDir: string }>;
   saveSettings: (settings: Partial<{ bookcaseDir: string }>) => Promise<{ bookcaseDir: string }>;
   getDefaultBookcaseDir: () => Promise<string>;

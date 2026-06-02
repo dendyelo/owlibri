@@ -1,6 +1,7 @@
 import React, { useState, useEffect, FormEvent } from "react";
 import { Entry } from "./main/services/entry";
 import { LocalBook } from "./main/services/library-db";
+import type { DownloadHistoryItem } from "./main/services/download-history";
 import { formatBytesPerSecond, parseSizeToBytes } from "./main/services/utilities";
 import logoImg from "./assets/icon.png";
 
@@ -15,6 +16,11 @@ interface DownloadItem {
   total: number;
   speed?: number;
   error?: string;
+  filePath?: string;
+  filename?: string;
+  addedAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
 }
 
 interface SearchFilters {
@@ -23,11 +29,142 @@ interface SearchFilters {
   year: "default" | "newest" | "oldest";
 }
 
+interface CoverImageProps {
+  coverUrl?: string;
+  alt: string;
+  className: string;
+}
+
+const isDirectCoverSource = (coverUrl: string) => {
+  return coverUrl.startsWith("data:") || coverUrl.startsWith("file:");
+};
+
+const formatDuration = (seconds: number) => {
+  const roundedSeconds = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(roundedSeconds / 3600);
+  const minutes = Math.floor((roundedSeconds % 3600) / 60);
+  const remainingSeconds = roundedSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${remainingSeconds}s`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  return `${remainingSeconds}s`;
+};
+
+const getDownloadEtaLabel = (item: DownloadItem) => {
+  if (item.status !== "downloading") {
+    return null;
+  }
+
+  const estimatedTotal = item.total > 0 ? item.total : parseSizeToBytes(item.size);
+  if (estimatedTotal <= 0) {
+    return "ETA calculating...";
+  }
+
+  const speed = item.speed ?? 0;
+  if (speed <= 0) {
+    return "ETA calculating...";
+  }
+
+  const remainingBytes = Math.max(estimatedTotal - item.progress, 0);
+  const remainingSeconds = remainingBytes / speed;
+  return `ETA ${formatDuration(remainingSeconds)}`;
+};
+
+const mapDownloadHistoryToItems = (history: DownloadHistoryItem[]) => {
+  return history.reduce<Record<string, DownloadItem>>((accumulator, item) => {
+    accumulator[item.id] = {
+      id: item.id,
+      title: item.title,
+      authors: item.authors,
+      format: item.format,
+      size: item.size,
+      status: item.status,
+      progress: item.progress,
+      total: item.total,
+      speed: item.speed,
+      error: item.error,
+      filePath: item.filePath,
+      filename: item.filename,
+      addedAt: item.addedAt,
+      updatedAt: item.updatedAt,
+      completedAt: item.completedAt,
+    };
+    return accumulator;
+  }, {});
+};
+
+const formatFileSize = (bytes: number) => {
+  if (bytes === 0 || !bytes) return "0 Bytes";
+  const units = ["Bytes", "KB", "MB", "GB"];
+  const base = 1024;
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(base)), units.length - 1);
+  const value = bytes / Math.pow(base, unitIndex);
+  return `${parseFloat(value.toFixed(value >= 10 ? 1 : 2))} ${units[unitIndex]}`;
+};
+
+function CoverImage({ coverUrl, alt, className }: CoverImageProps) {
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(coverUrl || null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!coverUrl) {
+      setResolvedSrc(null);
+      return;
+    }
+
+    if (isDirectCoverSource(coverUrl)) {
+      setResolvedSrc(coverUrl);
+      return;
+    }
+
+    setResolvedSrc(coverUrl);
+    window.api.resolveCoverImage(coverUrl)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.success && result.coverUrl) {
+          setResolvedSrc(result.coverUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedSrc(coverUrl);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [coverUrl]);
+
+  if (!resolvedSrc) {
+    return null;
+  }
+
+  return (
+    <img
+      src={resolvedSrc}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      decoding="async"
+      onError={() => setResolvedSrc(null)}
+    />
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<"bookcase" | "search" | "downloads" | "settings">("bookcase");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Entry[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     fileType: "all",
     language: "all",
@@ -36,7 +173,6 @@ export default function App() {
   const [localBooks, setLocalBooks] = useState<LocalBook[]>([]);
   const [downloads, setDownloads] = useState<Record<string, DownloadItem>>({});
   const [bookcasePath, setBookcasePath] = useState("");
-  const [showSavedToast, setShowSavedToast] = useState(false);
   const [mirrorStatus, setMirrorStatus] = useState<{ url: string; connected: boolean }>({
     url: "",
     connected: false,
@@ -46,7 +182,10 @@ export default function App() {
     latestVersion?: string;
     currentVersion?: string;
     releaseUrl?: string;
+    channel?: "stable" | "pre";
   } | null>(null);
+  const [coverCacheStats, setCoverCacheStats] = useState<{ fileCount: number; totalSizeBytes: number; protectedFileCount: number; removableExpiredFileCount: number } | null>(null);
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
 
   // Fetch local library books on mount and listen to download events
   useEffect(() => {
@@ -55,12 +194,20 @@ export default function App() {
       setLocalBooks(books);
     });
 
+    window.api.getDownloadHistory().then((history) => {
+      setDownloads(mapDownloadHistoryToItems(history));
+    });
+
     window.api.getMirrorStatus().then((status) => {
       setMirrorStatus(status);
     });
 
     window.api.getSettings().then((settings) => {
       setBookcasePath(settings.bookcaseDir);
+    });
+
+    window.api.getCoverCacheStats().then((stats) => {
+      setCoverCacheStats(stats);
     });
 
     const unsubscribeMirror = window.api.onMirrorStatusChanged((status) => {
@@ -105,6 +252,10 @@ export default function App() {
             progress: total,
             total,
             speed: existing.speed,
+            filePath: data.filePath || existing.filePath,
+            filename: data.filename || existing.filename,
+            error: undefined,
+            completedAt: new Date().toISOString(),
           },
         };
       });
@@ -142,9 +293,11 @@ export default function App() {
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
+    setSearchError(null);
     try {
-      const results = await window.api.searchLibgen(searchQuery);
-      setSearchResults(results);
+      const result = await window.api.searchLibgen(searchQuery);
+      setSearchResults(result.entries);
+      setSearchError(result.success ? null : (result.error || "Search failed."));
       setSearchFilters({
         fileType: "all",
         language: "all",
@@ -152,6 +305,8 @@ export default function App() {
       });
     } catch (err) {
       console.error("Failed search:", err);
+      setSearchResults([]);
+      setSearchError(err instanceof Error ? err.message : "Search failed. Please try again.");
     } finally {
       setIsSearching(false);
     }
@@ -177,6 +332,7 @@ export default function App() {
         progress: 0,
         total: 0,
         speed: 0,
+        addedAt: new Date().toISOString(),
       },
     }));
 
@@ -212,6 +368,18 @@ export default function App() {
     }
   };
 
+  // Open downloaded file using the system viewer
+  const handleOpenDownloadedFile = async (filePath?: string) => {
+    if (!filePath) {
+      return;
+    }
+
+    const res = await window.api.openBook(filePath);
+    if (!res.success) {
+      alert(`Could not open file: ${res.error}`);
+    }
+  };
+
   // Cancel active download
   const handleCancelDownload = async (id: string) => {
     const confirmCancel = window.confirm("Are you sure you want to cancel this active download?");
@@ -239,12 +407,17 @@ export default function App() {
   };
 
   // Remove a completed/failed download from UI queue list
-  const handleRemoveFromQueue = (id: string) => {
-    setDownloads((prev) => {
-      const copy = { ...prev };
-      delete copy[id];
-      return copy;
-    });
+  const handleRemoveFromQueue = async (id: string) => {
+    try {
+      await window.api.deleteDownloadHistory(id);
+      setDownloads((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+    } catch (error) {
+      console.error("Failed to remove download history entry:", error);
+    }
   };
 
   // Helper to format bytes to human readable string
@@ -338,9 +511,49 @@ export default function App() {
     triggerSavedToast();
   };
 
+  const triggerSettingsNotice = (message: string) => {
+    setSettingsNotice(message);
+    setTimeout(() => setSettingsNotice(null), 3000);
+  };
+
   const triggerSavedToast = () => {
-    setShowSavedToast(true);
-    setTimeout(() => setShowSavedToast(false), 3000);
+    triggerSettingsNotice("Settings saved successfully!");
+  };
+
+  const refreshCoverCacheStats = async () => {
+    const stats = await window.api.getCoverCacheStats();
+    setCoverCacheStats(stats);
+  };
+
+  const handleCleanupCoverCache = async () => {
+    try {
+      const result = await window.api.cleanupCoverCache();
+      await refreshCoverCacheStats();
+      const preservedLabel = result.protectedCount > 0
+        ? ` ${result.protectedCount} bookcase cover(s) were preserved.`
+        : "";
+      triggerSettingsNotice(`Removed ${result.removed} expired cover cache file(s).${preservedLabel}`);
+    } catch (error) {
+      console.error("Failed to clean expired cover cache:", error);
+      alert("Could not clean expired cover cache.");
+    }
+  };
+
+  const handleClearCoverCache = async () => {
+    const confirmClear = window.confirm("Clear unused cached cover images? Covers currently used by your Bookcase will be preserved.");
+    if (!confirmClear) return;
+
+    try {
+      const result = await window.api.clearCoverCache();
+      await refreshCoverCacheStats();
+      const preservedLabel = result.protectedCount > 0
+        ? ` ${result.protectedCount} bookcase cover(s) were preserved.`
+        : "";
+      triggerSettingsNotice(`Cleared ${result.removed} unused cover cache file(s).${preservedLabel}`);
+    } catch (error) {
+      console.error("Failed to clear cover cache:", error);
+      alert("Could not clear cover cache.");
+    }
   };
 
   return (
@@ -425,7 +638,8 @@ export default function App() {
             <div className="update-banner-body">
               <span className="update-icon">🚀</span>
               <span className="update-message">
-                New version <strong>{updateInfo.latestVersion}</strong> is available! (Current: {updateInfo.currentVersion})
+                {updateInfo.channel === "pre" ? "New pre-release" : "New version"}{" "}
+                <strong>{updateInfo.latestVersion}</strong> is available! (Current: {updateInfo.currentVersion})
               </span>
             </div>
             <div className="update-banner-actions">
@@ -433,7 +647,7 @@ export default function App() {
                 className="btn btn-primary btn-sm btn-update"
                 onClick={() => window.api.openExternal(updateInfo.releaseUrl || "")}
               >
-                Download Update
+                {updateInfo.channel === "pre" ? "View Pre-release" : "Download Update"}
               </button>
               <button 
                 className="btn-close-banner"
@@ -478,16 +692,11 @@ export default function App() {
                     onDoubleClick={() => handleOpenBook(book.filePath)}
                   >
                     <div className="book-card-cover">
-                      {book.coverUrl ? (
-                        <img
-                          src={book.coverUrl}
-                          alt={book.title}
-                          className="book-cover-image"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      ) : null}
+                      <CoverImage
+                        coverUrl={book.coverUrl}
+                        alt={book.title}
+                        className="book-cover-image"
+                      />
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="cover-icon fallback-icon">
                         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
                         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
@@ -661,6 +870,17 @@ export default function App() {
               </div>
             )}
 
+            {searchError && (
+              <div className="search-error-msg">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="error-icon-small">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>{searchError}</span>
+              </div>
+            )}
+
             <div className="search-results-list">
               {isSearching ? (
                 <div className="loading-state">
@@ -692,16 +912,11 @@ export default function App() {
                   return (
                     <div key={entry.id} className="search-result-card">
                       <div className="result-cover-wrapper">
-                        {entry.coverUrl ? (
-                          <img
-                            src={entry.coverUrl}
-                            alt="Cover"
-                            className="result-cover-image"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        ) : null}
+                        <CoverImage
+                          coverUrl={entry.coverUrl}
+                          alt={`Cover for ${entry.title}`}
+                          className="result-cover-image"
+                        />
                         <span className={`badge-format format-${entry.extension.toLowerCase()}`}>
                           {entry.extension.toUpperCase() || "PDF"}
                         </span>
@@ -750,6 +965,23 @@ export default function App() {
                           >
                             Retry Download
                           </button>
+                        ) : activeDl?.status === "completed" ? (
+                          <div className="result-action-stack">
+                            {activeDl.filePath && (
+                              <button
+                                className="btn btn-secondary btn-full"
+                                onClick={() => handleOpenDownloadedFile(activeDl.filePath)}
+                              >
+                                Open File
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-primary btn-full"
+                              onClick={() => handleDownload(entry)}
+                            >
+                              Download Again
+                            </button>
+                          </div>
                         ) : activeDl ? (
                           <button
                             className="btn btn-primary btn-full"
@@ -765,7 +997,6 @@ export default function App() {
                                 %)
                               </>
                             )}
-                            {activeDl.status === "completed" && "Completed"}
                           </button>
                         ) : (
                           <button
@@ -812,6 +1043,7 @@ export default function App() {
                     const percent = item.total > 0
                       ? Math.min(100, Math.round((item.progress / item.total) * 100))
                       : 0;
+                    const etaLabel = getDownloadEtaLabel(item);
                     return (
                       <div key={item.id} className="download-row">
                         <div className="download-info">
@@ -821,6 +1053,15 @@ export default function App() {
                               <span className={`badge-format format-${item.format.toLowerCase()}`}>
                                 {item.format.toUpperCase()}
                               </span>
+                              {item.status === "completed" && item.filePath && (
+                                <button
+                                  className="btn btn-secondary btn-sm btn-open-file"
+                                  onClick={() => handleOpenDownloadedFile(item.filePath)}
+                                  title="Open downloaded file"
+                                >
+                                  Open File
+                                </button>
+                              )}
                               {(item.status === "downloading" || item.status === "queued") ? (
                                 <button
                                   className="btn-cancel-download"
@@ -836,7 +1077,7 @@ export default function App() {
                                 <button
                                   className="btn-remove-queue"
                                   onClick={() => handleRemoveFromQueue(item.id)}
-                                  title="Remove from List"
+                                  title="Remove from History"
                                 >
                                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="cancel-icon">
                                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -857,6 +1098,11 @@ export default function App() {
                             {item.status === "downloading" && (
                               <span>
                                 {formatBytesPerSecond(item.speed || 0)}
+                              </span>
+                            )}
+                            {item.status === "downloading" && (
+                              <span>
+                                {etaLabel}
                               </span>
                             )}
                             <span className={`status-text status-${item.status}`}>
@@ -945,12 +1191,61 @@ export default function App() {
                 </div>
               </div>
 
-              {showSavedToast && (
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="settings-sec-icon">
+                    <path d="M12 22s8-4.5 8-11.5A8 8 0 0 0 4 10.5C4 17.5 12 22 12 22z" />
+                    <circle cx="12" cy="10.5" r="2.5" />
+                  </svg>
+                  <h3>Cover Cache</h3>
+                </div>
+                <div className="settings-card-body">
+                  <p className="settings-desc">
+                    Cached cover images stay local so they load faster in Search and Bookcase views. Covers used in your Bookcase are preserved automatically, and unused entries are pruned after 30 days.
+                  </p>
+
+                  <div className="settings-stats-grid">
+                    <div className="settings-stat">
+                      <span>Files</span>
+                      <strong>{coverCacheStats ? coverCacheStats.fileCount : "—"}</strong>
+                    </div>
+                    <div className="settings-stat">
+                      <span>Usage</span>
+                      <strong>{coverCacheStats ? formatFileSize(coverCacheStats.totalSizeBytes) : "—"}</strong>
+                    </div>
+                    <div className="settings-stat">
+                      <span>Bookcase</span>
+                      <strong>{coverCacheStats ? coverCacheStats.protectedFileCount : "—"}</strong>
+                    </div>
+                    <div className="settings-stat">
+                      <span>Removable</span>
+                      <strong>{coverCacheStats ? coverCacheStats.removableExpiredFileCount : "—"}</strong>
+                    </div>
+                  </div>
+
+                  <div className="settings-card-actions settings-card-actions-row">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleCleanupCoverCache}
+                    >
+                      Clean Expired
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleClearCoverCache}
+                    >
+                      Clear Unused
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {settingsNotice && (
                 <div className="settings-toast">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="toast-icon">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  <span>Settings saved successfully!</span>
+                  <span>{settingsNotice}</span>
                 </div>
               )}
             </div>

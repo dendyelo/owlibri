@@ -101,3 +101,4 @@ jobs:
         with:
           files: release-assets/**/*
           body_path: release-notes.md
+          prerelease: ${{ contains(github.ref_name, '-pre.') }}

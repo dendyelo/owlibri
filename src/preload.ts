@@ -17,6 +17,8 @@ interface DownloadProgressPayload {
 interface DownloadCompletePayload {
   id: string;
   total: number;
+  filePath?: string;
+  filename?: string;
 }
 
 interface DownloadErrorPayload {
@@ -33,9 +35,11 @@ contextBridge.exposeInMainWorld("api", {
   searchLibgen: (query: string) => ipcRenderer.invoke("search-libgen", query),
   downloadBook: (entry: Entry) => ipcRenderer.invoke("download-book", entry),
   getLocalBooks: () => ipcRenderer.invoke("get-local-books"),
+  getDownloadHistory: () => ipcRenderer.invoke("get-download-history"),
   openBook: (filePath: string) => ipcRenderer.invoke("open-book", filePath),
   deleteBook: (id: string) => ipcRenderer.invoke("delete-book", id),
   cancelDownload: (id: string) => ipcRenderer.invoke("cancel-download", id),
+  deleteDownloadHistory: (id: string) => ipcRenderer.invoke("delete-download-history", id),
   getMirrorStatus: () => ipcRenderer.invoke("get-mirror-status"),
   onDownloadProgress: (callback: (data: DownloadProgressPayload) => void) => {
     const subscription = (_event: IpcRendererEvent, data: DownloadProgressPayload) => callback(data);
@@ -67,6 +71,10 @@ contextBridge.exposeInMainWorld("api", {
   },
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
+  resolveCoverImage: (coverUrl: string) => ipcRenderer.invoke("resolve-cover-image", coverUrl),
+  getCoverCacheStats: () => ipcRenderer.invoke("get-cover-cache-stats"),
+  cleanupCoverCache: () => ipcRenderer.invoke("cleanup-cover-cache"),
+  clearCoverCache: () => ipcRenderer.invoke("clear-cover-cache"),
   getSettings: () => ipcRenderer.invoke("get-settings"),
   saveSettings: (settings: Partial<AppSettings>) => ipcRenderer.invoke("save-settings", settings),
   getDefaultBookcaseDir: () => ipcRenderer.invoke("get-default-bookcase-dir"),
