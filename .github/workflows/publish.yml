@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   publish:
     name: Build & Publish for ${{ matrix.os }}
@@ -39,5 +42,3 @@ jobs:
             out/make/**/*.exe
             out/make/**/*.deb
             out/make/**/*.rpm
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
