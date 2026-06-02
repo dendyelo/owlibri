@@ -25,7 +25,7 @@ const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 1000,
     height: 750,
-    title: '',
+    title: 'owlibri v' + app.getVersion(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
     },
