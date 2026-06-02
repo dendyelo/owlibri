@@ -31,6 +31,13 @@ export interface ElectronAPI {
   onDownloadComplete: (callback: (data: DownloadComplete) => void) => () => void;
   onDownloadError: (callback: (data: DownloadError) => void) => () => void;
   onMirrorStatusChanged: (callback: (data: { url: string; connected: boolean }) => void) => () => void;
+  checkForUpdates: () => Promise<{
+    updateAvailable: boolean;
+    latestVersion?: string;
+    currentVersion?: string;
+    releaseUrl?: string;
+  }>;
+  openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

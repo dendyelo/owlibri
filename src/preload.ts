@@ -35,5 +35,7 @@ contextBridge.exposeInMainWorld("api", {
     return () => {
       ipcRenderer.removeListener("mirror-status-changed", subscription);
     };
-  }
+  },
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  openExternal: (url: string) => ipcRenderer.invoke("open-external", url)
 });

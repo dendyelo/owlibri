@@ -271,3 +271,55 @@ ipcMain.handle('open-book', async (_event, filePath: string) => {
     return { success: false, error: (error as Error).message };
   }
 });
+
+// IPC Handler: Check For Updates from GitHub Releases
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    const response = await fetch('https://api.github.com/repos/dendyelo/owlibri/releases/latest', {
+      headers: {
+        'User-Agent': 'owlibri-app',
+      },
+    });
+    if (!response.ok) return { updateAvailable: false };
+    const data = (await response.json()) as any;
+    const latestVersion = data.tag_name ? data.tag_name.replace(/^v/, '') : '';
+    const currentVersion = app.getVersion();
+
+    // Simple semver comparison (major.minor.patch)
+    const compareVersions = (v1: string, v2: string) => {
+      const parts1 = v1.split('.').map(Number);
+      const parts2 = v2.split('.').map(Number);
+      for (let i = 0; i < 3; i++) {
+        const p1 = parts1[i] || 0;
+        const p2 = parts2[i] || 0;
+        if (p1 > p2) return 1;
+        if (p1 < p2) return -1;
+      }
+      return 0;
+    };
+
+    if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
+      return {
+        updateAvailable: true,
+        latestVersion: data.tag_name,
+        currentVersion: `v${currentVersion}`,
+        releaseUrl: data.html_url,
+      };
+    }
+    return { updateAvailable: false };
+  } catch (error) {
+    console.error('Update Check Error:', error);
+    return { updateAvailable: false };
+  }
+});
+
+// IPC Handler: Open External URL in Default Web Browser
+ipcMain.handle('open-external', async (_event, url: string) => {
+  try {
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    console.error('Open External Error:', error);
+    return { success: false, error: (error as Error).message };
+  }
+});

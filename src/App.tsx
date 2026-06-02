@@ -26,6 +26,12 @@ export default function App() {
     url: "",
     connected: false,
   });
+  const [updateInfo, setUpdateInfo] = useState<{
+    updateAvailable: boolean;
+    latestVersion?: string;
+    currentVersion?: string;
+    releaseUrl?: string;
+  } | null>(null);
 
   // Fetch local library books on mount and listen to download events
   useEffect(() => {
@@ -40,6 +46,12 @@ export default function App() {
 
     const unsubscribeMirror = window.api.onMirrorStatusChanged((status) => {
       setMirrorStatus(status);
+    });
+
+    window.api.checkForUpdates().then((info) => {
+      if (info && info.updateAvailable) {
+        setUpdateInfo(info);
+      }
     });
 
     // 2. Download Event Listeners
@@ -299,6 +311,32 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
+        {updateInfo && updateInfo.updateAvailable && (
+          <div className="update-banner">
+            <div className="update-banner-body">
+              <span className="update-icon">🚀</span>
+              <span className="update-message">
+                New version <strong>{updateInfo.latestVersion}</strong> is available! (Current: {updateInfo.currentVersion})
+              </span>
+            </div>
+            <div className="update-banner-actions">
+              <button 
+                className="btn btn-primary btn-sm btn-update"
+                onClick={() => window.api.openExternal(updateInfo.releaseUrl || "")}
+              >
+                Download Update
+              </button>
+              <button 
+                className="btn-close-banner"
+                onClick={() => setUpdateInfo(null)}
+                title="Dismiss"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Bookcase Tab */}
         {activeTab === "bookcase" && (
           <section className="tab-pane">
