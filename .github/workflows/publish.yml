@@ -72,10 +72,17 @@ jobs:
           git fetch --force --tags
 
           current_tag="${GITHUB_REF_NAME}"
-          previous_tag="$(git tag --sort=-version:refname | awk -v current="$current_tag" '
-            $0 == current { found = 1; next }
-            found { print; exit }
-          ')"
+          if [[ "$current_tag" == *-pre.* ]]; then
+            previous_tag="$(git tag --sort=-version:refname | awk -v current="$current_tag" '
+              $0 == current { found = 1; next }
+              found { print; exit }
+            ')"
+          else
+            previous_tag="$(git tag --sort=-version:refname | awk -v current="$current_tag" '
+              $0 == current { found = 1; next }
+              found && $0 !~ /-pre\./ { print; exit }
+            ')"
+          fi
 
           {
             echo "## What's Changed"

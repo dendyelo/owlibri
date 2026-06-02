@@ -1,7 +1,7 @@
 {
   "name": "owlibri",
   "productName": "owlibri",
-  "version": "1.0.2-pre.3",
+  "version": "1.0.2",
   "description": "Glassmorphic desktop bookcase and LibGen downloader for PDF, EPUB, and academic books.",
   "main": ".vite/build/main.js",
   "private": true,
