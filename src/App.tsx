@@ -1,7 +1,7 @@
 import React, { useState, useEffect, FormEvent } from "react";
 import { Entry } from "./main/services/entry";
 import { LocalBook } from "./main/services/library-db";
-import logoImg from "./assets/logo.jpg";
+import logoImg from "./assets/icon.png";
 
 interface DownloadItem {
   id: string;
