@@ -1262,6 +1262,12 @@ html[data-theme="light"] .app-container {
                     radial-gradient(circle at 12% 82%, rgba(59, 130, 246, 0.05) 0%, transparent 42%);
 }
 
+html[data-theme="light"] .sidebar {
+  background: linear-gradient(180deg, rgba(255, 251, 244, 0.94) 0%, rgba(248, 241, 230, 0.9) 100%);
+  border-right: 1px solid rgba(92, 76, 48, 0.08);
+  box-shadow: 8px 0 28px rgba(31, 41, 55, 0.05);
+}
+
 html[data-theme="light"] .brand-text h1 {
   background: linear-gradient(135deg, #273142 0%, var(--accent-gold) 100%);
   -webkit-background-clip: text;
@@ -1348,6 +1354,16 @@ html[data-theme="light"] .download-error-msg {
   border-color: rgba(239, 68, 68, 0.12);
 }
 
+html[data-theme="light"] .nav-menu {
+  gap: 0.7rem;
+}
+
+html[data-theme="light"] .nav-item {
+  background-color: rgba(255, 255, 255, 0.46);
+  border: 1px solid rgba(92, 76, 48, 0.06);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
 html[data-theme="light"] .download-row {
   background-color: rgba(255, 255, 255, 0.84);
 }
@@ -1358,6 +1374,41 @@ html[data-theme="light"] .settings-card {
 
 html[data-theme="light"] .theme-option.active {
   background-color: rgba(185, 124, 39, 0.06);
+}
+
+html[data-theme="light"] .nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(92, 76, 48, 0.1);
+}
+
+html[data-theme="light"] .nav-item.active {
+  background: linear-gradient(135deg, rgba(185, 124, 39, 0.12) 0%, rgba(255, 255, 255, 0.7) 100%);
+  color: #8a5a12;
+  border-color: rgba(185, 124, 39, 0.18);
+  box-shadow: inset 4px 0 0 rgba(185, 124, 39, 0.9), 0 8px 18px rgba(31, 41, 55, 0.06);
+}
+
+html[data-theme="light"] .nav-item.active .nav-icon {
+  color: #8a5a12;
+}
+
+html[data-theme="light"] .badge {
+  background-color: rgba(31, 41, 55, 0.06);
+  color: var(--text-primary);
+  border: 1px solid rgba(92, 76, 48, 0.06);
+}
+
+html[data-theme="light"] .sidebar-footer {
+  padding-top: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+html[data-theme="light"] .mirror-status {
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(92, 76, 48, 0.08);
+  border-radius: 999px;
+  padding: 0.65rem 0.8rem;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 .theme-switcher {
