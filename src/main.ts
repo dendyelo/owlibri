@@ -11,6 +11,7 @@ import { parseHTML } from 'linkedom';
 import { parseSizeToBytes } from './main/services/utilities';
 import { getAppSettings, saveAppSettings, getDefaultBookcaseDir } from './main/services/settings-db';
 import type { AppSettings } from './main/services/settings-db';
+import { updateElectronApp, UpdateSourceType } from 'update-electron-app';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -73,6 +74,25 @@ const getSafeExternalUrl = (url: string) => {
   }
 };
 
+const initializeWindowsAutoUpdate = () => {
+  if (process.platform !== 'win32' || !app.isPackaged || process.argv.includes('--squirrel-firstrun')) {
+    return;
+  }
+
+  setTimeout(() => {
+    try {
+      updateElectronApp({
+        updateSource: {
+          type: UpdateSourceType.ElectronPublicUpdateService,
+          repo: 'dendyelo/owlibri',
+        },
+      });
+    } catch (error) {
+      console.error('Failed to initialize Windows auto-update:', error);
+    }
+  }, 10000);
+};
+
 const createWindow = () => {
   // Create the browser window.
   mainWindow = new BrowserWindow({
@@ -109,6 +129,7 @@ app.on('ready', async () => {
     }
   }
 
+  initializeWindowsAutoUpdate();
   createWindow();
 
   // Set Dock icon on macOS during development/runtime
@@ -406,6 +427,10 @@ ipcMain.handle('open-book', async (_event, filePath: string) => {
 // IPC Handler: Check For Updates from GitHub Releases
 ipcMain.handle('check-for-updates', async () => {
   try {
+    if (process.platform === 'win32') {
+      return { updateAvailable: false };
+    }
+
     const response = await fetch('https://api.github.com/repos/dendyelo/owlibri/releases/latest', {
       headers: {
         'User-Agent': 'owlibri-app',

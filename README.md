@@ -53,6 +53,13 @@ Glassmorphic desktop bookcase and LibGen downloader.
 
 ---
 
+## Update Behavior
+
+* **Windows**: future releases will be able to download and apply updates automatically from GitHub Releases.
+* **macOS and Linux**: updates remain manual through the GitHub Releases page, where you can download the newest installer/package and replace the existing app.
+
+---
+
 ## File Storage & Database
 
 All book database entries and downloaded files are kept strictly local to your machine. You can find your physical documents here:
