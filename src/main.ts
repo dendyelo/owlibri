@@ -2,7 +2,11 @@ import { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } from 'electro
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
-import { detectActiveMirror } from './main/services/mirror-detector';
+import {
+  detectActiveMirror,
+  getLibgenMirrorCandidates,
+  LIBGEN_FALLBACK_MIRRORS,
+} from './main/services/mirror-detector';
 import { LibgenPlusAdapter } from './main/services/libgen-plus-adapter';
 import { downloadFile } from './main/services/download';
 import { getLocalBooks, addLocalBook, deleteLocalBook } from './main/services/library-db';
@@ -22,13 +26,12 @@ if (started) {
 }
 
 let mainWindow: BrowserWindow | null = null;
-let activeMirror = 'https://libgen.li/';
+let activeMirror = LIBGEN_FALLBACK_MIRRORS[0];
 let isConnected = false;
 const activeAbortControllers = new Map<string, AbortController>();
 const SEARCH_TIMEOUT_MS = 25000;
 const DETAIL_TIMEOUT_MS = 10000;
 const UPDATE_TIMEOUT_MS = 5000;
-const DEFAULT_LIBGEN_MIRROR = 'https://libgen.li/';
 const SEARCH_PAGE_SIZE = 25;
 
 interface GitHubRelease {
@@ -420,7 +423,7 @@ ipcMain.handle('search-libgen', async (_event, query: string, pageNumber = 1): P
     }
 
     const page = Number.isFinite(pageNumber) ? Math.max(1, Math.floor(pageNumber)) : 1;
-    const mirrors = Array.from(new Set([activeMirror, DEFAULT_LIBGEN_MIRROR]));
+    const mirrors = getLibgenMirrorCandidates(activeMirror);
     let lastError: unknown = null;
     let hadSuccessfulResponse = false;
     let lastMetadata: SearchPageMetadata = {
