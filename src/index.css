@@ -459,6 +459,9 @@ body, html, #root {
   z-index: 2;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(5px);
+  background-color: rgba(45, 55, 72, 0.92);
+  color: #ffffff;
+  border: 1px solid rgba(74, 85, 104, 0.5);
 }
 
 /* Formats Specific styling (High Contrast Legibility) */
@@ -669,6 +672,9 @@ body, html, #root {
   text-align: center;
   display: inline-block;
   min-width: 55px;
+  background-color: rgba(45, 55, 72, 0.92);
+  color: #ffffff;
+  border: 1px solid rgba(74, 85, 104, 0.5);
 }
 
 .result-info {
