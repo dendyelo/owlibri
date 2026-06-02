@@ -48,6 +48,37 @@ export class LibgenPlusAdapter {
       const mirror =
         element.children[8]?.getElementsByTagName("a")?.[0]?.getAttribute("href") || "";
 
+      // Extract cover image info
+      let coverUrl = "";
+      const mirrorHref = element.children[8]?.getElementsByTagName("a")?.[0]?.getAttribute("href") || "";
+      const md5Match = mirrorHref.match(/md5=([a-fA-F0-9]{32})/);
+      const md5 = md5Match ? md5Match[1] : "";
+
+      if (md5) {
+        const badges = element.children[0]?.querySelectorAll(".badge-secondary, .badge");
+        let idType = ""; // "l" or "f"
+        let libgenId = "";
+        
+        for (const badge of badges) {
+          const text = badge.textContent || "";
+          const match = text.match(/([lf])\s+(\d+)/);
+          if (match) {
+            idType = match[1]; // "l" or "f"
+            libgenId = match[2];
+            break;
+          }
+        }
+
+        if (libgenId) {
+          const numericId = parseInt(libgenId, 10);
+          if (!isNaN(numericId)) {
+            const folderId = Math.floor(numericId / 1000) * 1000;
+            const folderName = idType === "f" ? "fictioncovers" : "covers";
+            coverUrl = `/${folderName}/${folderId}/${md5}.jpg`;
+          }
+        }
+      }
+
       entries.push({
         id,
         dbId,
@@ -60,6 +91,7 @@ export class LibgenPlusAdapter {
         size,
         extension,
         mirror,
+        coverUrl,
       });
     }
 

@@ -10,4 +10,5 @@ export interface Entry {
   size: string;
   extension: string;
   mirror: string;
+  coverUrl?: string;
 }

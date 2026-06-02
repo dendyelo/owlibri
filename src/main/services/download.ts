@@ -6,6 +6,8 @@ import os from "os";
 interface downloadFileArguments {
   downloadUrl: string;
   estimatedTotalBytes?: number;
+  downloadDir: string;
+  signal?: AbortSignal;
   onStart: (filename: string, total: number) => void;
   onData: (filename: string, chunkLength: number, total: number) => void;
 }
@@ -42,7 +44,7 @@ export const downloadFile = async ({
         headers["Range"] = `bytes=${bytesDownloaded}-`;
       }
 
-      const response = await fetch(downloadUrl, { headers });
+      const response = await fetch(downloadUrl, { headers, signal });
       if (!response.ok && response.status !== 206) {
         throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
       }
@@ -60,11 +62,10 @@ export const downloadFile = async ({
           Math.max(sanitizedFileName.length - MAX_FILE_NAME_LENGTH, 0)
         );
         
-        const downloadsDir = path.join(os.homedir(), "Downloads");
-        if (!fs.existsSync(downloadsDir)) {
-          fs.mkdirSync(downloadsDir, { recursive: true });
+        if (!fs.existsSync(downloadDir)) {
+          fs.mkdirSync(downloadDir, { recursive: true });
         }
-        filePath = path.join(downloadsDir, slicedFileName);
+        filePath = path.join(downloadDir, slicedFileName);
         filename = fullFileName;
         const contentLength = Number(response.headers.get("content-length") || 0);
         fileTotalSize = contentLength > 0 ? contentLength : (estimatedTotalBytes || 0);
@@ -93,6 +94,9 @@ export const downloadFile = async ({
 
       try {
         while (true) {
+          if (signal?.aborted) {
+            throw new Error("Download was cancelled by user.");
+          }
           if (writeError) {
             throw writeError;
           }
@@ -136,6 +140,14 @@ export const downloadFile = async ({
         throw streamError;
       }
     } catch (error) {
+      if (signal?.aborted || (error as Error).name === "AbortError") {
+        if (filePath && fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+          } catch {}
+        }
+        throw new Error("Download was cancelled by user.");
+      }
       retries++;
       if (retries >= MAX_RETRIES) {
         if (filePath && fs.existsSync(filePath) && bytesDownloaded < fileTotalSize) {
