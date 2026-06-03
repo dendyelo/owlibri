@@ -426,6 +426,18 @@ const getSearchErrorMessageFromSummary = (summary: SearchFailureSummary) => {
   return 'Search failed. Please try again.';
 };
 
+const broadcastMirrorStatus = (url: string, connected: boolean, updateActiveMirror = false) => {
+  if (updateActiveMirror) {
+    activeMirror = url;
+  }
+
+  isConnected = connected;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('mirror-status-changed', { url, connected });
+  }
+};
+
 const initializeWindowsAutoUpdate = () => {
   if (
     process.platform !== 'win32' ||
@@ -530,9 +542,7 @@ app.on('ready', async () => {
   }
   console.log('Mirror connection status:', isConnected ? 'Connected' : 'Disconnected');
 
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('mirror-status-changed', { url: activeMirror, connected: isConnected });
-  }
+  broadcastMirrorStatus(activeMirror, isConnected, true);
 });
 
 app.on('window-all-closed', () => {
@@ -591,6 +601,7 @@ ipcMain.handle('search-libgen', async (_event, query: string, pageNumber = 1): P
       try {
         const { entries, metadata } = await searchEntriesOnMirror(query, mirror, page);
         lastMetadata = metadata;
+        broadcastMirrorStatus(mirror, true, true);
         if (entries.length > 0) {
           return { success: true, entries, ...metadata };
         }
@@ -606,6 +617,7 @@ ipcMain.handle('search-libgen', async (_event, query: string, pageNumber = 1): P
     }
 
     if (lastError && !hadSuccessfulResponse) {
+      broadcastMirrorStatus(activeMirror, false);
       return {
         success: false,
         entries: [],
