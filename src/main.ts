@@ -403,6 +403,10 @@ const getSearchErrorMessageFromSummary = (summary: SearchFailureSummary) => {
     return 'Search may be blocked by your current VPN or network. Try disabling the VPN or switching networks, then search again.';
   }
 
+  if (summary.mirrorUnavailableCount >= 3 && summary.networkOrBlockedCount === 0 && summary.timeoutCount === 0) {
+    return 'LibGen mirrors are returning Service Unavailable (503) from multiple endpoints. This usually means the mirrors are overloaded, or your VPN/proxy exit IP is being rate-limited. Try again without the VPN or later.';
+  }
+
   if (summary.networkOrBlockedCount > 0 && (summary.mirrorUnavailableCount > 0 || summary.timeoutCount > 0)) {
     return 'Some LibGen mirrors look blocked by your VPN or network, while the rest are temporarily unavailable. Try disabling the VPN or retrying later.';
   }
