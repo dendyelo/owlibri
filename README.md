@@ -15,7 +15,6 @@ Glassmorphic desktop bookcase and LibGen downloader.
 * **Elegant Bookcase**: Browse and manage your local downloaded library in a visually stunning card grid.
 * **Direct LibGen Search**: Search millions of books, papers, and textbooks directly from the application.
 * **Search Filters & Pagination**: Filter results by file type and language, sort by year, and page through search results 25 at a time.
-* **Intelligent Mirror Connection**: Shows active mirror status in the sidebar and refreshes after searches so you can spot outages faster.
 * **Cover Art Resolution**: Automatically parses and resolves book database IDs and MD5s to fetch cover previews dynamically.
 * **Advanced Download Manager**:
   * Optimized download streams for fast and reliable file transfers.
