@@ -10,13 +10,15 @@ Glassmorphic desktop bookcase and LibGen downloader.
 
 ---
 
-## What Changed in v1.0.2
+## What Changed in v1.0.3
 
-* Added Windows auto-update for stable builds so updates can be downloaded and applied without reinstalling manually.
-* Added download history, so finished downloads can be reopened later with **Open File**.
-* Added cover cache controls in Settings and protected bookcase covers from being removed during cleanup.
-* Improved search reliability with fallback mirrors, longer timeouts, and clearer error messages.
-* Added ETA alongside live download speed in the download queue.
+* Search now refreshes mirror status after successful and failed searches, so the sidebar state stays closer to reality.
+* Improved LibGen mirror fallback handling and request headers to make searches more resilient across mirrors and VPN or network conditions.
+* Search errors are clearer when mirrors are overloaded, unavailable, or possibly blocked by a VPN or proxy.
+* Search results keep pagination, filters, and year sorting, so large LibGen result sets are easier to browse page by page.
+* Download history, live speed, ETA, and **Open File** actions are available for completed downloads.
+* Cover cache controls remain available in Settings, and covers used in the Bookcase are protected from cleanup.
+* Windows stable builds keep automatic update support from GitHub Releases, while macOS and Linux use manual replace-based updates.
 
 ---
 
@@ -32,13 +34,16 @@ Glassmorphic desktop bookcase and LibGen downloader.
 
 * **Elegant Bookcase**: Browse and manage your local downloaded library in a visually stunning card grid.
 * **Direct LibGen Search**: Search millions of books, papers, and textbooks directly from the application.
-* **Search Filters**: Filter results by file type and language, and sort by year to narrow down large LibGen searches quickly.
-* **Intelligent Mirror Connection**: Features an automated mirror health checker in the sidebar that pings active mirrors dynamically, so you always know when the search servers are online.
+* **Search Filters & Pagination**: Filter results by file type and language, sort by year, and page through search results 25 at a time.
+* **Intelligent Mirror Connection**: Shows active mirror status in the sidebar and refreshes after searches so you can spot outages faster.
 * **Cover Art Resolution**: Automatically parses and resolves book database IDs and MD5s to fetch cover previews dynamically.
-* **Advanced Download Manager**: 
+* **Advanced Download Manager**:
   * Optimized download streams for fast and reliable file transfers.
-  * Displays real-time download progress, file sizes, status indicators, and live download speed.
+  * Displays real-time download progress, file sizes, status indicators, live download speed, and ETA.
   * Native download cancellation support (instantly aborts network requests and cleans up partial temporary files from disk).
+  * Completed downloads can be reopened later with **Open File** from download history.
+* **Download History**: Track completed, cancelled, and failed downloads locally, then reopen or retry them later.
+* **Theme Switch**: Toggle between light and dark themes in Settings.
 * **System-Native Storage**: Saves all of your books in a dedicated, easy-to-access folder inside your user files: `Documents/owlibri/bookcase/`.
 * **Instant Reader Launch**: Double-click any book card or click "Read" to open the file immediately inside your operating system's default PDF/EPUB viewer.
 
@@ -75,13 +80,17 @@ All book database entries and downloaded files are kept strictly local to your m
 You can find this project on GitHub with terms like:
 
 * `libgen`
+* `libgen search`
 * `libgen downloader`
 * `ebook downloader`
 * `pdf downloader`
 * `epub downloader`
+* `bookcase manager`
+* `download history`
 * `desktop bookcase`
 * `electron book manager`
 * `academic books`
+* `academic papers`
 
 ---
 
