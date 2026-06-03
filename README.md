@@ -10,26 +10,6 @@ Glassmorphic desktop bookcase and LibGen downloader.
 
 ---
 
-## What Changed in v1.0.3
-
-* Search now refreshes mirror status after successful and failed searches, so the sidebar state stays closer to reality.
-* Improved LibGen mirror fallback handling and request headers to make searches more resilient across mirrors and VPN or network conditions.
-* Search errors are clearer when mirrors are overloaded, unavailable, or possibly blocked by a VPN or proxy.
-* Search results keep pagination, filters, and year sorting, so large LibGen result sets are easier to browse page by page.
-* Download history, live speed, ETA, and **Open File** actions are available for completed downloads.
-* Cover cache controls remain available in Settings, and covers used in the Bookcase are protected from cleanup.
-* Windows stable builds keep automatic update support from GitHub Releases, while macOS and Linux use manual replace-based updates.
-
----
-
-## Screenshots
-
-<p align="center">
-  <img src="assets/owlibri_2.png" alt="owlibri search view" />
-</p>
-
----
-
 ## Key Features
 
 * **Elegant Bookcase**: Browse and manage your local downloaded library in a visually stunning card grid.
@@ -48,6 +28,12 @@ Glassmorphic desktop bookcase and LibGen downloader.
 * **Instant Reader Launch**: Double-click any book card or click "Read" to open the file immediately inside your operating system's default PDF/EPUB viewer.
 
 ---
+
+## Screenshots
+
+<p align="center">
+  <img src="assets/owlibri_2.png" alt="owlibri search view" />
+</p>
 
 ## How to Install and Run
 
