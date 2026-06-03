@@ -33,6 +33,11 @@ const SEARCH_TIMEOUT_MS = 25000;
 const DETAIL_TIMEOUT_MS = 10000;
 const UPDATE_TIMEOUT_MS = 5000;
 const SEARCH_PAGE_SIZE = 25;
+const LIBGEN_BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
 
 interface GitHubRelease {
   tag_name?: string;
@@ -60,6 +65,15 @@ interface SearchPageMetadata {
   totalResults?: number;
   hasNextPage: boolean;
   hasPreviousPage: boolean;
+}
+
+type SearchFailureCategory = 'timeout' | 'network-or-blocked' | 'mirror-unavailable' | 'unknown';
+
+interface SearchFailureSummary {
+  timeoutCount: number;
+  networkOrBlockedCount: number;
+  mirrorUnavailableCount: number;
+  unknownCount: number;
 }
 
 interface ParsedVersion {
@@ -208,6 +222,103 @@ const isTimeoutLikeError = (error: unknown) => {
   return name === 'TimeoutError' || name === 'AbortError' || message.toLowerCase().includes('timeout');
 };
 
+const getHttpStatusFromSearchError = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return null;
+  }
+
+  const match = error.message.match(/^Search request failed:\s+(\d{3})\b/);
+  if (!match) {
+    return null;
+  }
+
+  const status = Number.parseInt(match[1], 10);
+  return Number.isFinite(status) ? status : null;
+};
+
+const getFetchCauseCode = (error: unknown) => {
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+
+  const cause = (error as { cause?: unknown }).cause;
+  if (!cause || typeof cause !== 'object') {
+    return null;
+  }
+
+  const code = (cause as { code?: unknown }).code;
+  return typeof code === 'string' && code.trim() ? code.trim() : null;
+};
+
+const isLikelyNetworkCauseCode = (code: string | null) => {
+  return [
+    'ENOTFOUND',
+    'EAI_AGAIN',
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'ECONNREFUSED',
+    'ENETUNREACH',
+    'EHOSTUNREACH',
+    'EPIPE',
+    'ECONNABORTED',
+    'ERR_SOCKET_TIMEOUT',
+  ].includes(code || '');
+};
+
+const classifySearchFailure = (error: unknown): SearchFailureCategory => {
+  if (isTimeoutLikeError(error)) {
+    return 'timeout';
+  }
+
+  const status = getHttpStatusFromSearchError(error);
+  if (status !== null) {
+    if ([403, 407, 429, 451].includes(status)) {
+      return 'network-or-blocked';
+    }
+
+    if (status === 404 || status >= 500) {
+      return 'mirror-unavailable';
+    }
+  }
+
+  const causeCode = getFetchCauseCode(error);
+  if (isLikelyNetworkCauseCode(causeCode)) {
+    return 'network-or-blocked';
+  }
+
+  if (error instanceof TypeError && error.message.toLowerCase().includes('fetch failed')) {
+    return 'network-or-blocked';
+  }
+
+  return 'unknown';
+};
+
+const summarizeSearchFailures = (failures: SearchFailureCategory[]) => {
+  return failures.reduce<SearchFailureSummary>((summary, failure) => {
+    switch (failure) {
+      case 'timeout':
+        summary.timeoutCount += 1;
+        break;
+      case 'network-or-blocked':
+        summary.networkOrBlockedCount += 1;
+        break;
+      case 'mirror-unavailable':
+        summary.mirrorUnavailableCount += 1;
+        break;
+      default:
+        summary.unknownCount += 1;
+        break;
+    }
+
+    return summary;
+  }, {
+    timeoutCount: 0,
+    networkOrBlockedCount: 0,
+    mirrorUnavailableCount: 0,
+    unknownCount: 0,
+  });
+};
+
 const isKnownBookPath = (filePath: string) => {
   const requestedPath = path.resolve(filePath);
   return getLocalBooks().some((book) => path.resolve(book.filePath) === requestedPath);
@@ -246,6 +357,10 @@ const searchEntriesOnMirror = async (query: string, mirror: string, page: number
 
   const response = await fetch(searchUrl, {
     signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+    headers: {
+      ...LIBGEN_BROWSER_HEADERS,
+      Referer: new URL('/index.php', mirror).toString(),
+    },
   });
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status} ${response.statusText}`);
@@ -272,6 +387,36 @@ const getSearchErrorMessage = (error: unknown) => {
 
   if (error instanceof Error && error.message) {
     return error.message;
+  }
+
+  return 'Search failed. Please try again.';
+};
+
+const getSearchErrorMessageFromSummary = (summary: SearchFailureSummary) => {
+  const totalFailures = summary.timeoutCount + summary.networkOrBlockedCount + summary.mirrorUnavailableCount + summary.unknownCount;
+
+  if (totalFailures === 0) {
+    return 'Search failed. Please try again.';
+  }
+
+  if (summary.networkOrBlockedCount > 0 && summary.mirrorUnavailableCount === 0 && summary.timeoutCount === 0) {
+    return 'Search may be blocked by your current VPN or network. Try disabling the VPN or switching networks, then search again.';
+  }
+
+  if (summary.networkOrBlockedCount > 0 && (summary.mirrorUnavailableCount > 0 || summary.timeoutCount > 0)) {
+    return 'Some LibGen mirrors look blocked by your VPN or network, while the rest are temporarily unavailable. Try disabling the VPN or retrying later.';
+  }
+
+  if (summary.mirrorUnavailableCount > 0 && summary.timeoutCount > 0) {
+    return 'LibGen mirrors are busy or unavailable right now. Please try again later.';
+  }
+
+  if (summary.mirrorUnavailableCount > 0) {
+    return 'LibGen mirrors are currently unavailable. Please try again later.';
+  }
+
+  if (summary.timeoutCount > 0) {
+    return 'Search timed out while contacting LibGen. The mirror may be busy. Please try again.';
   }
 
   return 'Search failed. Please try again.';
@@ -371,7 +516,10 @@ app.on('ready', async () => {
 
   // Verify if the active mirror is reachable
   try {
-    const testRes = await fetch(activeMirror, { signal: AbortSignal.timeout(3000) });
+    const testRes = await fetch(activeMirror, {
+      signal: AbortSignal.timeout(3000),
+      headers: LIBGEN_BROWSER_HEADERS,
+    });
     isConnected = testRes.ok;
   } catch {
     isConnected = false;
@@ -426,6 +574,7 @@ ipcMain.handle('search-libgen', async (_event, query: string, pageNumber = 1): P
     const mirrors = getLibgenMirrorCandidates(activeMirror);
     let lastError: unknown = null;
     let hadSuccessfulResponse = false;
+    const failureCategories: SearchFailureCategory[] = [];
     let lastMetadata: SearchPageMetadata = {
       currentPage: page,
       pageSize: SEARCH_PAGE_SIZE,
@@ -444,6 +593,7 @@ ipcMain.handle('search-libgen', async (_event, query: string, pageNumber = 1): P
         hadSuccessfulResponse = true;
       } catch (error) {
         lastError = error;
+        failureCategories.push(classifySearchFailure(error));
         console.error(`LibGen search attempt failed for ${mirror}:`, error);
         if (!isTimeoutLikeError(error)) {
           continue;
@@ -455,7 +605,7 @@ ipcMain.handle('search-libgen', async (_event, query: string, pageNumber = 1): P
       return {
         success: false,
         entries: [],
-        error: getSearchErrorMessage(lastError),
+        error: getSearchErrorMessageFromSummary(summarizeSearchFailures(failureCategories)),
         ...lastMetadata,
       };
     }
@@ -503,6 +653,7 @@ ipcMain.handle('download-book', async (event, entry: Entry) => {
       try {
         const checkFast = await fetch(fastUrl, {
           signal: createRequestSignal(controller.signal, 3000),
+          headers: LIBGEN_BROWSER_HEADERS,
         });
         if (checkFast.ok) {
           downloadUrl = fastUrl;
@@ -522,6 +673,10 @@ ipcMain.handle('download-book', async (event, entry: Entry) => {
         const detailUrl = adapter.getDetailPageURL(md5);
         const detailRes = await fetch(detailUrl, {
           signal: createRequestSignal(controller.signal, DETAIL_TIMEOUT_MS),
+          headers: {
+            ...LIBGEN_BROWSER_HEADERS,
+            Referer: new URL('/index.php', activeMirror).toString(),
+          },
         });
         if (!detailRes.ok) {
           throw new Error(`Detail page request failed: ${detailRes.status} ${detailRes.statusText}`);

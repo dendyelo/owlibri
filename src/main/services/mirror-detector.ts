@@ -6,14 +6,18 @@ interface MirrorConfig {
 }
 
 export const LIBGEN_FALLBACK_MIRRORS = [
-  "https://libgen.li/",
+  "http://libgen.li/",
   "https://libgen.la/",
   "https://libgen.gl/",
   "https://libgen.bz/",
   "https://libgen.vg/",
-  "https://libgen.gs/",
-  "https://libgen.lc/",
 ];
+
+const LIBGEN_BROWSER_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+};
 
 const normalizeMirrorUrl = (mirrorUrl: string) => {
   try {
@@ -21,7 +25,6 @@ const normalizeMirrorUrl = (mirrorUrl: string) => {
     if (normalized.protocol !== "https:" && normalized.protocol !== "http:") {
       return null;
     }
-    normalized.protocol = "https:";
     return normalized.toString();
   } catch {
     return null;
@@ -57,10 +60,13 @@ export const getLibgenMirrorCandidates = (preferredMirror?: string) => {
 
 export async function detectActiveMirror(): Promise<string> {
   try {
-    const res = await fetch(CONFIG_URL, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(CONFIG_URL, {
+      signal: AbortSignal.timeout(5000),
+      headers: LIBGEN_BROWSER_HEADERS,
+    });
     const data = (await res.json()) as MirrorConfig;
     const mirrors = data.mirrors || [];
-    
+
     for (const mirror of mirrors) {
       if (!mirror.src) {
         continue;
@@ -70,7 +76,10 @@ export async function detectActiveMirror(): Promise<string> {
         continue;
       }
       try {
-        const testRes = await fetch(normalizedMirror, { signal: AbortSignal.timeout(3000) });
+        const testRes = await fetch(normalizedMirror, {
+          signal: AbortSignal.timeout(3000),
+          headers: LIBGEN_BROWSER_HEADERS,
+        });
         if (testRes.ok) {
           return normalizedMirror;
         }
@@ -81,7 +90,7 @@ export async function detectActiveMirror(): Promise<string> {
   } catch {
     // ignore
   }
-  
+
   // Fallback default
   return LIBGEN_FALLBACK_MIRRORS[0];
 }
