@@ -33,6 +33,8 @@ const SEARCH_TIMEOUT_MS = 25000;
 const DETAIL_TIMEOUT_MS = 10000;
 const UPDATE_TIMEOUT_MS = 5000;
 const SEARCH_PAGE_SIZE = 25;
+const WINDOWS_AUTO_UPDATE_DELAY_MS = 10000;
+const WINDOWS_FIRST_RUN_AUTO_UPDATE_DELAY_MS = 30000;
 const LIBGEN_BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -442,11 +444,13 @@ const initializeWindowsAutoUpdate = () => {
   if (
     process.platform !== 'win32' ||
     !app.isPackaged ||
-    process.argv.includes('--squirrel-firstrun') ||
     isPrereleaseBuild()
   ) {
     return;
   }
+
+  const isSquirrelFirstRun = process.argv.includes('--squirrel-firstrun');
+  const updateDelay = isSquirrelFirstRun ? WINDOWS_FIRST_RUN_AUTO_UPDATE_DELAY_MS : WINDOWS_AUTO_UPDATE_DELAY_MS;
 
   setTimeout(() => {
     try {
@@ -459,7 +463,7 @@ const initializeWindowsAutoUpdate = () => {
     } catch (error) {
       console.error('Failed to initialize Windows auto-update:', error);
     }
-  }, 10000);
+  }, updateDelay);
 };
 
 const createWindow = () => {
