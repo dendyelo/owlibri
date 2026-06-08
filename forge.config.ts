@@ -14,7 +14,10 @@ const config: ForgeConfig = {
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({
+      setupIcon: './src/assets/icon.ico',
+      iconUrl: 'https://raw.githubusercontent.com/dendyelo/owlibri/main/src/assets/icon.ico',
+    }),
     new MakerDMG({ format: 'ULFO' }, ['darwin']),
     new MakerRpm({}),
     new MakerDeb({}),
