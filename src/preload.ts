@@ -33,6 +33,11 @@ interface MirrorStatusPayload {
   connected: boolean;
 }
 
+interface WindowsUpdateStatusPayload {
+  status: "checking" | "available" | "not-available" | "downloaded" | "error";
+  message: string;
+}
+
 contextBridge.exposeInMainWorld("api", {
   searchLibgen: (query: string, page = 1) => ipcRenderer.invoke("search-libgen", query, page),
   downloadBook: (entry: Entry) => ipcRenderer.invoke("download-book", entry),
@@ -71,7 +76,14 @@ contextBridge.exposeInMainWorld("api", {
       ipcRenderer.removeListener("mirror-status-changed", subscription);
     };
   },
-  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  onWindowsUpdateStatusChanged: (callback: (data: WindowsUpdateStatusPayload) => void) => {
+    const subscription = (_event: IpcRendererEvent, data: WindowsUpdateStatusPayload) => callback(data);
+    ipcRenderer.on("windows-update-status-changed", subscription);
+    return () => {
+      ipcRenderer.removeListener("windows-update-status-changed", subscription);
+    };
+  },
+  checkForUpdates: (options?: { manual?: boolean }) => ipcRenderer.invoke("check-for-updates", options),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
   resolveCoverImage: (coverUrl: string) => ipcRenderer.invoke("resolve-cover-image", coverUrl),
   getCoverCacheStats: () => ipcRenderer.invoke("get-cover-cache-stats"),

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } from 'electron';
+import { app, autoUpdater, BrowserWindow, ipcMain, shell, dialog, nativeImage } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -28,6 +28,9 @@ if (started) {
 let mainWindow: BrowserWindow | null = null;
 let activeMirror = LIBGEN_FALLBACK_MIRRORS[0];
 let isConnected = false;
+let windowsAutoUpdaterInitialized = false;
+let windowsAutoUpdaterListenersAttached = false;
+let windowsAutoUpdaterTimer: ReturnType<typeof setTimeout> | null = null;
 const activeAbortControllers = new Map<string, AbortController>();
 const SEARCH_TIMEOUT_MS = 25000;
 const DETAIL_TIMEOUT_MS = 10000;
@@ -46,6 +49,17 @@ interface GitHubRelease {
   html_url?: string;
   prerelease?: boolean;
   draft?: boolean;
+}
+
+interface UpdateCheckResponse {
+  updateAvailable: boolean;
+  latestVersion?: string;
+  currentVersion?: string;
+  releaseUrl?: string;
+  channel?: 'stable' | 'pre';
+  checkingInBackground?: boolean;
+  automatic?: boolean;
+  message?: string;
 }
 
 interface SearchResultPayload {
@@ -440,30 +454,142 @@ const broadcastMirrorStatus = (url: string, connected: boolean, updateActiveMirr
   }
 };
 
+const getCurrentVersionTag = () => `v${app.getVersion()}`;
+
+const broadcastWindowsUpdateStatus = (status: 'checking' | 'available' | 'not-available' | 'downloaded' | 'error', message: string) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('windows-update-status-changed', { status, message });
+  }
+};
+
+const attachWindowsAutoUpdaterListeners = () => {
+  if (windowsAutoUpdaterListenersAttached) {
+    return;
+  }
+
+  windowsAutoUpdaterListenersAttached = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    broadcastWindowsUpdateStatus('checking', 'Checking for Windows updates...');
+  });
+
+  autoUpdater.on('update-available', () => {
+    broadcastWindowsUpdateStatus('available', 'Update found. Downloading in the background...');
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    broadcastWindowsUpdateStatus('not-available', 'You are already on the latest version.');
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    broadcastWindowsUpdateStatus('downloaded', 'Update downloaded. Restart the app to apply it.');
+  });
+
+  autoUpdater.on('error', (error) => {
+    const message = error instanceof Error && error.message
+      ? `Windows update check failed: ${error.message}`
+      : 'Windows update check failed.';
+    broadcastWindowsUpdateStatus('error', message);
+  });
+};
+
+const canUseWindowsAutoUpdate = () => {
+  return process.platform === 'win32' && app.isPackaged && !isPrereleaseBuild();
+};
+
+const configureWindowsAutoUpdater = () => {
+  if (!canUseWindowsAutoUpdate()) {
+    return false;
+  }
+
+  if (windowsAutoUpdaterInitialized) {
+    return true;
+  }
+
+  attachWindowsAutoUpdaterListeners();
+  updateElectronApp({
+    updateSource: {
+      type: UpdateSourceType.ElectronPublicUpdateService,
+      repo: 'dendyelo/owlibri',
+    },
+  });
+  windowsAutoUpdaterInitialized = true;
+  return true;
+};
+
 const initializeWindowsAutoUpdate = () => {
-  if (
-    process.platform !== 'win32' ||
-    !app.isPackaged ||
-    isPrereleaseBuild()
-  ) {
+  if (!canUseWindowsAutoUpdate() || windowsAutoUpdaterTimer) {
     return;
   }
 
   const isSquirrelFirstRun = process.argv.includes('--squirrel-firstrun');
   const updateDelay = isSquirrelFirstRun ? WINDOWS_FIRST_RUN_AUTO_UPDATE_DELAY_MS : WINDOWS_AUTO_UPDATE_DELAY_MS;
 
-  setTimeout(() => {
+  windowsAutoUpdaterTimer = setTimeout(() => {
+    windowsAutoUpdaterTimer = null;
     try {
-      updateElectronApp({
-        updateSource: {
-          type: UpdateSourceType.ElectronPublicUpdateService,
-          repo: 'dendyelo/owlibri',
-        },
-      });
+      configureWindowsAutoUpdater();
     } catch (error) {
       console.error('Failed to initialize Windows auto-update:', error);
     }
   }, updateDelay);
+};
+
+const checkWindowsAutoUpdateNow = (): UpdateCheckResponse => {
+  if (process.platform !== 'win32') {
+    return {
+      updateAvailable: false,
+      currentVersion: getCurrentVersionTag(),
+      message: 'Windows auto-update is only available on Windows.',
+    };
+  }
+
+  if (!app.isPackaged) {
+    return {
+      updateAvailable: false,
+      currentVersion: getCurrentVersionTag(),
+      message: 'Auto-update checks are only available in packaged Windows builds.',
+    };
+  }
+
+  if (isPrereleaseBuild()) {
+    return {
+      updateAvailable: false,
+      currentVersion: getCurrentVersionTag(),
+      message: 'Auto-update is disabled for pre-release builds.',
+    };
+  }
+
+  if (windowsAutoUpdaterTimer) {
+    clearTimeout(windowsAutoUpdaterTimer);
+    windowsAutoUpdaterTimer = null;
+  }
+
+  try {
+    const initializedNow = !windowsAutoUpdaterInitialized;
+    configureWindowsAutoUpdater();
+    if (!initializedNow) {
+      autoUpdater.checkForUpdates();
+    }
+
+    return {
+      updateAvailable: false,
+      currentVersion: getCurrentVersionTag(),
+      checkingInBackground: true,
+      automatic: true,
+      message: 'Windows update check started. You will be prompted after an update is downloaded.',
+    };
+  } catch (error) {
+    const message = error instanceof Error && error.message
+      ? `Windows update check failed: ${error.message}`
+      : 'Windows update check failed.';
+    return {
+      updateAvailable: false,
+      currentVersion: getCurrentVersionTag(),
+      automatic: true,
+      message,
+    };
+  }
 };
 
 const createWindow = () => {
@@ -962,16 +1088,29 @@ ipcMain.handle('open-book', async (_event, filePath: string) => {
 });
 
 // IPC Handler: Check For Updates from GitHub Releases
-ipcMain.handle('check-for-updates', async () => {
+ipcMain.handle('check-for-updates', async (_event, options?: unknown): Promise<UpdateCheckResponse> => {
   try {
+    const manual = isRecord(options) && options.manual === true;
     const channel = getUpdateChannel();
     if (process.platform === 'win32' && channel === 'stable') {
-      return { updateAvailable: false };
+      if (manual) {
+        return checkWindowsAutoUpdateNow();
+      }
+
+      return {
+        updateAvailable: false,
+        currentVersion: getCurrentVersionTag(),
+        automatic: true,
+      };
     }
 
     const latestRelease = await getLatestReleaseForChannel(channel);
     if (!latestRelease?.tag_name) {
-      return { updateAvailable: false };
+      return {
+        updateAvailable: false,
+        currentVersion: getCurrentVersionTag(),
+        message: 'No release information is available right now.',
+      };
     }
 
     const latestVersion = latestRelease.tag_name.replace(/^v/, '');
@@ -981,15 +1120,24 @@ ipcMain.handle('check-for-updates', async () => {
       return {
         updateAvailable: true,
         latestVersion: latestRelease.tag_name,
-        currentVersion: `v${currentVersion}`,
+        currentVersion: getCurrentVersionTag(),
         releaseUrl: latestRelease.html_url,
         channel: latestRelease.prerelease ? 'pre' : 'stable',
       };
     }
-    return { updateAvailable: false };
+    return {
+      updateAvailable: false,
+      currentVersion: getCurrentVersionTag(),
+      channel,
+      message: 'You are already on the latest version.',
+    };
   } catch (error) {
     console.error('Update Check Error:', error);
-    return { updateAvailable: false };
+    return {
+      updateAvailable: false,
+      currentVersion: getCurrentVersionTag(),
+      message: 'Update check failed. Please try again later.',
+    };
   }
 });
 

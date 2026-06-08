@@ -28,6 +28,11 @@ interface DownloadError {
   error: string;
 }
 
+interface WindowsUpdateStatus {
+  status: "checking" | "available" | "not-available" | "downloaded" | "error";
+  message: string;
+}
+
 interface ElectronAPI {
   searchLibgen: (query: string, page?: number) => Promise<{
     success: boolean;
@@ -52,12 +57,16 @@ interface ElectronAPI {
   onDownloadComplete: (callback: (data: DownloadComplete) => void) => () => void;
   onDownloadError: (callback: (data: DownloadError) => void) => () => void;
   onMirrorStatusChanged: (callback: (data: { url: string; connected: boolean }) => void) => () => void;
-  checkForUpdates: () => Promise<{
+  onWindowsUpdateStatusChanged: (callback: (data: WindowsUpdateStatus) => void) => () => void;
+  checkForUpdates: (options?: { manual?: boolean }) => Promise<{
     updateAvailable: boolean;
     latestVersion?: string;
     currentVersion?: string;
     releaseUrl?: string;
     channel?: "stable" | "pre";
+    checkingInBackground?: boolean;
+    automatic?: boolean;
+    message?: string;
   }>;
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
   resolveCoverImage: (coverUrl: string) => Promise<{ success: boolean; coverUrl?: string; error?: string }>;

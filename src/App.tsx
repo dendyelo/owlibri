@@ -227,6 +227,14 @@ export default function App() {
     currentVersion?: string;
     releaseUrl?: string;
     channel?: "stable" | "pre";
+    checkingInBackground?: boolean;
+    automatic?: boolean;
+    message?: string;
+  } | null>(null);
+  const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<{
+    status: "idle" | "checking" | "available" | "not-available" | "downloaded" | "error";
+    message: string;
   } | null>(null);
   const [coverCacheStats, setCoverCacheStats] = useState<{ fileCount: number; totalSizeBytes: number; protectedFileCount: number; removableExpiredFileCount: number } | null>(null);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
@@ -263,6 +271,13 @@ export default function App() {
 
     const unsubscribeMirror = window.api.onMirrorStatusChanged((status) => {
       setMirrorStatus(status);
+    });
+
+    const unsubscribeWindowsUpdate = window.api.onWindowsUpdateStatusChanged((status) => {
+      setUpdateCheckStatus(status);
+      if (status.status !== "checking") {
+        setIsCheckingForUpdates(false);
+      }
     });
 
     window.api.checkForUpdates().then((info) => {
@@ -338,6 +353,7 @@ export default function App() {
       unsubscribeComplete();
       unsubscribeError();
       unsubscribeMirror();
+      unsubscribeWindowsUpdate();
     };
   }, []);
 
@@ -742,6 +758,51 @@ export default function App() {
 
   const triggerSavedToast = () => {
     triggerSettingsNotice("Settings saved successfully!");
+  };
+
+  const handleManualUpdateCheck = async () => {
+    setIsCheckingForUpdates(true);
+    setUpdateCheckStatus({
+      status: "checking",
+      message: "Checking for updates...",
+    });
+
+    try {
+      const info = await window.api.checkForUpdates({ manual: true });
+
+      if (info.updateAvailable) {
+        setUpdateInfo(info);
+        setUpdateCheckStatus({
+          status: "available",
+          message: `${info.latestVersion || "A new version"} is available.`,
+        });
+        triggerSettingsNotice("Update available.");
+        return;
+      }
+
+      if (info.checkingInBackground) {
+        setUpdateCheckStatus({
+          status: "checking",
+          message: info.message || "Checking for updates in the background...",
+        });
+        return;
+      }
+
+      setUpdateCheckStatus({
+        status: "not-available",
+        message: info.message || "You are already on the latest version.",
+      });
+      triggerSettingsNotice(info.message || "You are already on the latest version.");
+    } catch (error) {
+      console.error("Failed to check for updates:", error);
+      setUpdateCheckStatus({
+        status: "error",
+        message: "Update check failed. Please try again later.",
+      });
+      triggerSettingsNotice("Update check failed.");
+    } finally {
+      setIsCheckingForUpdates(false);
+    }
   };
 
   const refreshCoverCacheStats = async () => {
@@ -1462,6 +1523,54 @@ export default function App() {
                       <span className="theme-option-title">Light</span>
                       <span className="theme-option-desc">Bright, softer interface for daytime use.</span>
                     </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="settings-sec-icon">
+                    <path d="M21 12a9 9 0 0 1-15.55 6.2" />
+                    <path d="M3 12A9 9 0 0 1 18.55 5.8" />
+                    <path d="M18 2v4h4" />
+                    <path d="M6 22v-4H2" />
+                  </svg>
+                  <h3>Application Updates</h3>
+                </div>
+                <div className="settings-card-body">
+                  <p className="settings-desc">
+                    Check for the newest owlibri release. Windows stable builds can update automatically, while macOS and Linux use the release page for manual replacement.
+                  </p>
+
+                  {updateCheckStatus && (
+                    <div className={`settings-update-status status-${updateCheckStatus.status}`}>
+                      <span className="settings-update-dot"></span>
+                      <span>{updateCheckStatus.message}</span>
+                    </div>
+                  )}
+
+                  <div className="settings-card-actions settings-card-actions-row">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleManualUpdateCheck}
+                      disabled={isCheckingForUpdates}
+                    >
+                      {isCheckingForUpdates ? (
+                        <>
+                          <span className="spinner"></span> Checking...
+                        </>
+                      ) : (
+                        "Check for Updates"
+                      )}
+                    </button>
+                    {updateInfo?.updateAvailable && updateInfo.releaseUrl && (
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => window.api.openExternal(updateInfo.releaseUrl || "")}
+                      >
+                        View Release
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
